@@ -1,24 +1,15 @@
 import * as React from "react"
 import { cn } from "@/lib/utils"
 
-const Select = ({ value, onValueChange, children, ...props }) => {
-  return (
-    <SelectContext.Provider value={{ value, onValueChange }}>
-      <div className="relative" {...props}>{children}</div>
-    </SelectContext.Provider>
-  )
-}
-
 const SelectContext = React.createContext({})
 
 const SelectTrigger = React.forwardRef(({ className, children, ...props }, ref) => {
-  const { value } = React.useContext(SelectContext)
   const [open, setOpen] = React.useState(false)
   return (
     <button
       ref={ref}
       className={cn(
-        "flex h-10 w-full items-center justify-between rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus:outline-none focus:ring-2 focus:ring-ring disabled:cursor-not-allowed disabled:opacity-50",
+        "flex min-h-11 w-full items-center justify-between rounded-lg border border-input bg-card px-3 py-2 text-sm ring-offset-background focus:outline-none focus:ring-2 focus:ring-ring disabled:cursor-not-allowed disabled:opacity-50",
         className
       )}
       onClick={() => setOpen(!open)}
@@ -43,7 +34,7 @@ const NativeSelect = React.forwardRef(({ className, children, value, onChange, .
     value={value}
     onChange={onChange}
     className={cn(
-      "flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus:outline-none focus:ring-2 focus:ring-ring disabled:cursor-not-allowed disabled:opacity-50",
+      "flex min-h-11 w-full rounded-lg border border-input bg-card px-3 py-2 text-sm text-foreground ring-offset-background focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 focus:ring-offset-background disabled:cursor-not-allowed disabled:opacity-50 transition-colors cursor-pointer",
       className
     )}
     {...props}

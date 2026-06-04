@@ -1,6 +1,5 @@
 import { useState } from 'react'
 import { Download, Upload } from 'lucide-react'
-import { Button } from '@/components/ui/button'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { importDB } from '@/api/client'
 
@@ -27,20 +26,20 @@ export default function ExportImport() {
   }
 
   return (
-    <div className="flex items-center gap-3">
-      <a href="/api/export" download="expense_buddy.db">
-        <Button variant="outline" size="sm">
-          <Download size={14} className="mr-1" /> Export DB
-        </Button>
+    <div className="flex flex-wrap items-center gap-2">
+      <a
+        href="/api/export"
+        download="expense_buddy.db"
+        className="inline-flex min-h-10 items-center justify-center gap-2 rounded-md border border-input bg-card px-3 py-2 text-center text-xs font-semibold leading-tight text-foreground no-underline shadow-sm transition-colors hover:border-primary/45 hover:bg-primary/5 hover:text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+      >
+        <Download size={15} /> Export DB
       </a>
 
       <label>
-        <Button variant="outline" size="sm" asChild>
-          <span>
-            <Upload size={14} className="mr-1" />
+        <span className="inline-flex min-h-10 cursor-pointer items-center justify-center gap-2 rounded-md border border-input bg-card px-3 py-2 text-center text-xs font-semibold leading-tight text-foreground shadow-sm transition-colors hover:border-primary/45 hover:bg-primary/5 hover:text-primary">
+            <Upload size={15} />
             {importing ? 'Importing…' : 'Import DB'}
-          </span>
-        </Button>
+        </span>
         <input
           type="file"
           accept=".db"
@@ -51,7 +50,7 @@ export default function ExportImport() {
       </label>
 
       {message && (
-        <Alert variant={message.type === 'error' ? 'destructive' : 'default'} className="py-2 px-3 text-xs">
+        <Alert variant={message.type === 'error' ? 'destructive' : 'default'} className="px-3 py-2 text-xs">
           <AlertDescription>{message.text}</AlertDescription>
         </Alert>
       )}

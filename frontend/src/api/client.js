@@ -14,8 +14,12 @@ export const deleteMonth = (month) => api.delete(`/months/${month}`)
 export const saveTransactions = (month, transactions, replace = false) =>
   api.post('/transactions/save', { month, transactions, replace })
 
-export const getTransactions = (params = {}) =>
-  api.get('/transactions', { params })
+export const getTransactions = (params = {}) => {
+  // map frontend filter keys to backend query param names
+  const p = { ...params }
+  if (p.type) { p.tx_type = p.type; delete p.type }
+  return api.get('/transactions', { params: p })
+}
 
 export const updateComments = (id, comments) =>
   api.put(`/transactions/${id}/comments`, { comments })
@@ -28,6 +32,9 @@ export const getTagMappings = () => api.get('/tag-mappings')
 
 export const updateTagMapping = (particulars, category) =>
   api.put('/tag-mappings', { particulars, category })
+
+export const setTagIgnored = (tag, ignored) =>
+  api.put('/tag-mappings/ignore', { tag, ignored })
 
 // ── Export / Import ───────────────────────────────────────────────────────────
 export const importDB = (formData) =>

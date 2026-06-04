@@ -1,24 +1,70 @@
-import { useEffect, useState, useMemo } from 'react'
+import { useEffect, useMemo, useState } from 'react'
+import PageShell from '@/components/PageShell'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Select } from '@/components/ui/select'
-import { Badge } from '@/components/ui/badge'
-import { getTransactions, getMonths } from '@/api/client'
+import { getMonths, getTransactions } from '@/api/client'
 import {
-  LineChart,
-  Line,
-  BarChart,
+  Area,
+  AreaChart,
   Bar,
+  BarChart,
+  CartesianGrid,
+  Cell,
+  Legend,
+  Line,
+  Pie,
+  PieChart,
+  ResponsiveContainer,
+  Tooltip,
   XAxis,
   YAxis,
-  CartesianGrid,
-  Tooltip,
-  Legend,
-  ResponsiveContainer,
 } from 'recharts'
-import { TrendingDown, TrendingUp, Wallet } from 'lucide-react'
+import { Activity, ArrowDownRight, ArrowUpRight, BadgeIndianRupee, PieChart as PieIcon, ReceiptText, TrendingDown, TrendingUp } from 'lucide-react'
 
-const fmt = (v) => `₹${Number(v).toLocaleString('en-IN', { maximumFractionDigits: 0 })}`
-const COLORS = ['#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#06b6d4', '#f97316']
+const fmt = (value) => `₹${Number(value).toLocaleString('en-IN', { maximumFractionDigits: 0 })}`
+const shortFmt = (value) => `₹${(Number(value) / 1000).toFixed(0)}k`
+const COLORS = ['#047857', '#4f46e5', '#d97706', '#be123c', '#0891b2', '#7c3aed', '#65a30d', '#c2410c']
+
+const CHART_STYLE = {
+  grid: 'hsl(214 18% 85% / 0.75)',
+  tooltip: {
+    backgroundColor: '#ffffff',
+    border: '1px solid hsl(214 18% 85%)',
+    borderRadius: '8px',
+    boxShadow: '0 14px 30px rgba(15, 23, 42, 0.12)',
+    color: '#1f2937',
+    fontSize: '12px',
+  },
+  tick: { fontSize: 12, fill: '#536071' },
+}
+
+function StatCard({ label, value, detail, icon: Icon, tone = 'primary' }) {
+  const toneClass = {
+    primary: 'bg-primary/10 text-primary',
+    income: 'bg-emerald-100 text-emerald-700',
+    spend: 'bg-rose-100 text-rose-700',
+    amber: 'bg-amber-100 text-amber-700',
+  }[tone]
+
+  return (
+    <Card>
+      <CardContent className="p-5">
+        <div className="flex items-start justify-between gap-4">
+          <div className="min-w-0">
+            <p className="text-xs font-semibold uppercase tracking-[0.16em] text-muted-foreground">{label}</p>
+            <p className="mt-2 break-words text-2xl font-semibold leading-tight text-foreground tabular-nums sm:text-3xl">
+              {value}
+            </p>
+            <p className="mt-2 text-sm leading-5 text-muted-foreground">{detail}</p>
+          </div>
+          <div className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-lg ${toneClass}`}>
+            <Icon size={21} />
+          </div>
+        </div>
+      </CardContent>
+    </Card>
+  )
+}
 
 export default function Dashboard() {
   const [transactions, setTransactions] = useState([])
@@ -28,41 +74,42 @@ export default function Dashboard() {
 
   useEffect(() => {
     Promise.all([getTransactions(), getMonths()])
-      .then(([txRes, mRes]) => {
+      .then(([txRes, monthRes]) => {
         setTransactions(txRes.data)
-        setMonths(mRes.data)
-        if (mRes.data.length > 0) setSelectedMonth(mRes.data[0].month)
+        setMonths(monthRes.data)
+        if (monthRes.data.length > 0) setSelectedMonth(monthRes.data[0].month)
       })
       .finally(() => setLoading(false))
   }, [])
 
-  // Monthly totals for line chart
+  const cleanTransactions = useMemo(() => transactions.filter((transaction) => !transaction.ignored), [transactions])
+
   const monthlyTotals = useMemo(() => {
     const map = {}
-    for (const t of transactions) {
-      if (!map[t.month]) map[t.month] = { month: t.month, debit: 0, credit: 0 }
-      if (t.type === 'debit') map[t.month].debit += t.amount
-      else map[t.month].credit += t.amount
+    for (const transaction of cleanTransactions) {
+      if (!map[transaction.month]) map[transaction.month] = { month: transaction.month, debit: 0, credit: 0, net: 0 }
+      if (transaction.type === 'debit') map[transaction.month].debit += transaction.amount
+      else map[transaction.month].credit += transaction.amount
+      map[transaction.month].net = map[transaction.month].credit - map[transaction.month].debit
     }
     return Object.values(map)
       .sort((a, b) => a.month.localeCompare(b.month))
-      .map((r) => ({ ...r, debit: Math.round(r.debit), credit: Math.round(r.credit) }))
-  }, [transactions])
+      .map((row) => ({ ...row, debit: Math.round(row.debit), credit: Math.round(row.credit), net: Math.round(row.net) }))
+  }, [cleanTransactions])
 
-  // Summary for selected month
   const monthSummary = useMemo(() => {
-    const txs = transactions.filter((t) => t.month === selectedMonth)
-    const debit = txs.filter((t) => t.type === 'debit').reduce((s, t) => s + t.amount, 0)
-    const credit = txs.filter((t) => t.type === 'credit').reduce((s, t) => s + t.amount, 0)
-    return { txs, debit, credit, count: txs.length }
-  }, [transactions, selectedMonth])
+    const txs = cleanTransactions.filter((transaction) => transaction.month === selectedMonth)
+    const debits = txs.filter((transaction) => transaction.type === 'debit')
+    const debit = debits.reduce((sum, transaction) => sum + transaction.amount, 0)
+    const credit = txs.filter((transaction) => transaction.type === 'credit').reduce((sum, transaction) => sum + transaction.amount, 0)
+    return { txs, debit, credit, avgDebit: debits.length ? debit / debits.length : 0, count: txs.length }
+  }, [cleanTransactions, selectedMonth])
 
-  // Top tags for selected month
   const tagBreakdown = useMemo(() => {
     const map = {}
-    for (const t of monthSummary.txs.filter((t) => t.type === 'debit')) {
-      const k = t.tag || 'Unknown'
-      map[k] = (map[k] || 0) + t.amount
+    for (const transaction of monthSummary.txs.filter((entry) => entry.type === 'debit')) {
+      const key = transaction.tag || 'Unknown'
+      map[key] = (map[key] || 0) + transaction.amount
     }
     return Object.entries(map)
       .map(([name, value]) => ({ name, value: Math.round(value) }))
@@ -70,111 +117,157 @@ export default function Dashboard() {
       .slice(0, 8)
   }, [monthSummary])
 
-  if (loading) return <div className="p-8 text-muted-foreground">Loading…</div>
+  const categoryBreakdown = useMemo(() => {
+    const map = {}
+    for (const transaction of monthSummary.txs.filter((entry) => entry.type === 'debit')) {
+      const key = transaction.category || 'Uncategorized'
+      map[key] = (map[key] || 0) + transaction.amount
+    }
+    return Object.entries(map)
+      .map(([name, value]) => ({ name, value: Math.round(value) }))
+      .sort((a, b) => b.value - a.value)
+      .slice(0, 7)
+  }, [monthSummary])
+
+  const daySpend = useMemo(() => {
+    const map = {}
+    for (const transaction of monthSummary.txs.filter((entry) => entry.type === 'debit')) {
+      const day = String(transaction.date).slice(-2)
+      map[day] = (map[day] || 0) + transaction.amount
+    }
+    return Object.entries(map)
+      .map(([day, amount]) => ({ day, amount: Math.round(amount) }))
+      .sort((a, b) => a.day.localeCompare(b.day))
+  }, [monthSummary])
+
+  const net = monthSummary.credit - monthSummary.debit
+  const savingsRate = monthSummary.credit > 0 ? (net / monthSummary.credit) * 100 : 0
+  const topTag = tagBreakdown[0]
+
+  if (loading) {
+    return (
+      <PageShell title="Dashboard" description="Preparing your financial overview.">
+        <Card>
+          <CardContent className="flex min-h-80 items-center justify-center p-6">
+            <div className="flex flex-col items-center gap-3 text-muted-foreground">
+              <div className="h-9 w-9 animate-spin rounded-full border-2 border-primary/20 border-t-primary" />
+              <p className="text-sm font-medium">Loading dashboard</p>
+            </div>
+          </CardContent>
+        </Card>
+      </PageShell>
+    )
+  }
 
   return (
-    <div className="p-8 space-y-6">
-      <h2 className="text-2xl font-bold">Dashboard</h2>
-
-      {/* Month selector */}
-      <div className="flex items-center gap-3">
-        <span className="text-sm font-medium">Selected month:</span>
-        <Select
-          value={selectedMonth}
-          onChange={(e) => setSelectedMonth(e.target.value)}
-          className="w-40"
-        >
-          {months.map((m) => (
-            <option key={m.month} value={m.month}>
-              {m.month} ({m.count})
-            </option>
-          ))}
-        </Select>
+    <PageShell
+      eyebrow="Overview"
+      title="Dashboard"
+      description="Track cash flow, spending concentration, and month-level patterns without losing readability."
+      actions={(
+        <div className="flex min-w-56 items-center gap-2 rounded-lg border border-border bg-card px-3 py-2 shadow-sm">
+          <span className="text-xs font-semibold uppercase tracking-[0.14em] text-muted-foreground">Month</span>
+          <Select value={selectedMonth} onChange={(event) => setSelectedMonth(event.target.value)} className="min-w-36 flex-1 border-0 bg-transparent p-0 shadow-none focus:ring-0">
+            {months.map((month) => (
+              <option key={month.month} value={month.month}>{month.month} ({month.count})</option>
+            ))}
+          </Select>
+        </div>
+      )}
+    >
+      <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4">
+        <StatCard label="Total spend" value={fmt(monthSummary.debit)} detail={`${monthSummary.count} clean transactions`} icon={TrendingDown} tone="spend" />
+        <StatCard label="Credits" value={fmt(monthSummary.credit)} detail="Income, refunds, and transfers" icon={TrendingUp} tone="income" />
+        <StatCard label={net >= 0 ? 'Surplus' : 'Deficit'} value={fmt(Math.abs(net))} detail={`${Math.round(savingsRate)}% savings rate`} icon={net >= 0 ? ArrowUpRight : ArrowDownRight} tone={net >= 0 ? 'primary' : 'spend'} />
+        <StatCard label="Avg debit" value={fmt(monthSummary.avgDebit)} detail={topTag ? `Largest tag: ${topTag.name}` : 'No debit data yet'} icon={BadgeIndianRupee} tone="amber" />
       </div>
 
-      {/* Summary cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium text-muted-foreground flex items-center gap-2">
-              <TrendingDown size={14} className="text-red-500" /> Total Spend
-            </CardTitle>
+      <div className="grid grid-cols-1 gap-5 xl:grid-cols-3">
+        <Card className="xl:col-span-2">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2"><Activity size={18} className="text-primary" /> Cash flow trend</CardTitle>
           </CardHeader>
           <CardContent>
-            <p className="text-2xl font-bold text-red-600">{fmt(monthSummary.debit)}</p>
-            <p className="text-xs text-muted-foreground mt-1">{monthSummary.count} transactions</p>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium text-muted-foreground flex items-center gap-2">
-              <TrendingUp size={14} className="text-green-500" /> Total Credits
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <p className="text-2xl font-bold text-green-600">{fmt(monthSummary.credit)}</p>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium text-muted-foreground flex items-center gap-2">
-              <Wallet size={14} /> Net
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <p className={`text-2xl font-bold ${monthSummary.credit - monthSummary.debit >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-              {fmt(Math.abs(monthSummary.credit - monthSummary.debit))}
-            </p>
-            <p className="text-xs text-muted-foreground mt-1">
-              {monthSummary.credit - monthSummary.debit >= 0 ? 'surplus' : 'deficit'}
-            </p>
-          </CardContent>
-        </Card>
-      </div>
-
-      {/* Monthly trend line chart */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-base">Monthly Trend</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <ResponsiveContainer width="100%" height={260}>
-            <LineChart data={monthlyTotals} margin={{ top: 5, right: 20, left: 10, bottom: 5 }}>
-              <CartesianGrid strokeDasharray="3 3" />
-              <XAxis dataKey="month" />
-              <YAxis tickFormatter={(v) => `₹${(v / 1000).toFixed(0)}k`} />
-              <Tooltip formatter={(v) => fmt(v)} />
-              <Legend />
-              <Line type="monotone" dataKey="debit" stroke="#ef4444" name="Debit" dot />
-              <Line type="monotone" dataKey="credit" stroke="#10b981" name="Credit" dot />
-            </LineChart>
-          </ResponsiveContainer>
-        </CardContent>
-      </Card>
-
-      {/* Tag breakdown for selected month */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-base">Spend by Tag — {selectedMonth}</CardTitle>
-        </CardHeader>
-        <CardContent>
-          {tagBreakdown.length === 0 ? (
-            <p className="text-muted-foreground text-sm">No debit data for this month.</p>
-          ) : (
-            <ResponsiveContainer width="100%" height={260}>
-              <BarChart data={tagBreakdown} layout="vertical" margin={{ top: 0, right: 20, left: 60, bottom: 0 }}>
-                <CartesianGrid strokeDasharray="3 3" />
-                <XAxis type="number" tickFormatter={(v) => `₹${(v / 1000).toFixed(0)}k`} />
-                <YAxis type="category" dataKey="name" width={60} />
-                <Tooltip formatter={(v) => fmt(v)} />
-                <Bar dataKey="value" fill="#3b82f6" radius={[0, 4, 4, 0]} />
-              </BarChart>
+            <ResponsiveContainer width="100%" height={320}>
+              <AreaChart data={monthlyTotals} margin={{ top: 10, right: 18, left: 0, bottom: 0 }}>
+                <CartesianGrid strokeDasharray="4 4" stroke={CHART_STYLE.grid} vertical={false} />
+                <XAxis dataKey="month" tick={CHART_STYLE.tick} tickLine={false} axisLine={false} />
+                <YAxis tickFormatter={shortFmt} tick={CHART_STYLE.tick} tickLine={false} axisLine={false} width={54} />
+                <Tooltip formatter={(value) => fmt(value)} contentStyle={CHART_STYLE.tooltip} />
+                <Legend wrapperStyle={{ fontSize: '12px', paddingTop: '10px' }} />
+                <Area type="monotone" dataKey="credit" name="Credit" stroke="#047857" fill="#047857" fillOpacity={0.12} strokeWidth={2.5} />
+                <Area type="monotone" dataKey="debit" name="Spend" stroke="#be123c" fill="#be123c" fillOpacity={0.1} strokeWidth={2.5} />
+                <Line type="monotone" dataKey="net" name="Net" stroke="#4f46e5" strokeWidth={2.5} dot={false} />
+              </AreaChart>
             </ResponsiveContainer>
-          )}
-        </CardContent>
-      </Card>
-    </div>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2"><PieIcon size={18} className="text-primary" /> Category mix</CardTitle>
+          </CardHeader>
+          <CardContent>
+            {categoryBreakdown.length === 0 ? (
+              <div className="flex h-80 items-center justify-center text-sm text-muted-foreground">No category data for this month.</div>
+            ) : (
+              <ResponsiveContainer width="100%" height={320}>
+                <PieChart>
+                  <Pie data={categoryBreakdown} dataKey="value" nameKey="name" cx="50%" cy="48%" innerRadius={58} outerRadius={104} paddingAngle={2}>
+                    {categoryBreakdown.map((entry, index) => <Cell key={entry.name} fill={COLORS[index % COLORS.length]} />)}
+                  </Pie>
+                  <Tooltip formatter={(value) => fmt(value)} contentStyle={CHART_STYLE.tooltip} />
+                  <Legend layout="horizontal" verticalAlign="bottom" wrapperStyle={{ fontSize: '12px', lineHeight: '20px' }} />
+                </PieChart>
+              </ResponsiveContainer>
+            )}
+          </CardContent>
+        </Card>
+      </div>
+
+      <div className="grid grid-cols-1 gap-5 xl:grid-cols-2">
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2"><ReceiptText size={18} className="text-primary" /> Spend by tag</CardTitle>
+          </CardHeader>
+          <CardContent>
+            {tagBreakdown.length === 0 ? (
+              <div className="flex h-72 items-center justify-center text-sm text-muted-foreground">No debit data for this month.</div>
+            ) : (
+              <ResponsiveContainer width="100%" height={300}>
+                <BarChart data={tagBreakdown} layout="vertical" margin={{ top: 0, right: 18, left: 24, bottom: 0 }}>
+                  <CartesianGrid strokeDasharray="4 4" stroke={CHART_STYLE.grid} horizontal={false} />
+                  <XAxis type="number" tickFormatter={shortFmt} tick={CHART_STYLE.tick} axisLine={false} tickLine={false} />
+                  <YAxis type="category" dataKey="name" width={96} tick={CHART_STYLE.tick} axisLine={false} tickLine={false} />
+                  <Tooltip formatter={(value) => fmt(value)} contentStyle={CHART_STYLE.tooltip} cursor={{ fill: 'hsl(210 20% 94%)' }} />
+                  <Bar dataKey="value" fill="#047857" radius={[0, 6, 6, 0]} />
+                </BarChart>
+              </ResponsiveContainer>
+            )}
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2"><Activity size={18} className="text-primary" /> Daily spend pulse</CardTitle>
+          </CardHeader>
+          <CardContent>
+            {daySpend.length === 0 ? (
+              <div className="flex h-72 items-center justify-center text-sm text-muted-foreground">No daily spend data for this month.</div>
+            ) : (
+              <ResponsiveContainer width="100%" height={300}>
+                <BarChart data={daySpend} margin={{ top: 8, right: 18, left: 0, bottom: 0 }}>
+                  <CartesianGrid strokeDasharray="4 4" stroke={CHART_STYLE.grid} vertical={false} />
+                  <XAxis dataKey="day" tick={CHART_STYLE.tick} axisLine={false} tickLine={false} />
+                  <YAxis tickFormatter={shortFmt} tick={CHART_STYLE.tick} axisLine={false} tickLine={false} width={54} />
+                  <Tooltip formatter={(value) => fmt(value)} labelFormatter={(day) => `Day ${day}`} contentStyle={CHART_STYLE.tooltip} cursor={{ fill: 'hsl(210 20% 94%)' }} />
+                  <Bar dataKey="amount" name="Spend" fill="#4f46e5" radius={[6, 6, 0, 0]} />
+                </BarChart>
+              </ResponsiveContainer>
+            )}
+          </CardContent>
+        </Card>
+      </div>
+    </PageShell>
   )
 }

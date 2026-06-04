@@ -12,11 +12,11 @@ export default function MonthMismatchBanner({ userMonth, detectedMonth, onUseDet
           You selected <strong>{userMonth}</strong>, but the statement appears to contain
           transactions from <strong>{detectedMonth}</strong>.
         </p>
-        <div className="flex gap-2 mt-2">
+        <div className="mt-3 flex flex-col gap-2 sm:flex-row sm:items-center">
           <Button size="sm" variant="outline" onClick={onUseDetected}>
             Switch to {detectedMonth}
           </Button>
-          <span className="text-xs self-center text-muted-foreground">
+          <span className="text-xs text-muted-foreground">
             or keep your selection and continue
           </span>
         </div>

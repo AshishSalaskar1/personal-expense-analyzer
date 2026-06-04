@@ -8,9 +8,9 @@ import TagManager from '@/pages/TagManager'
 export default function App() {
   return (
     <BrowserRouter>
-      <div className="flex min-h-screen">
+      <div className="flex min-h-dvh bg-background surface-grid">
         <Sidebar />
-        <main className="flex-1 overflow-auto bg-background">
+        <main className="min-w-0 flex-1 overflow-auto pb-20 lg:pb-0">
           <Routes>
             <Route path="/" element={<Upload />} />
             <Route path="/dashboard" element={<Dashboard />} />

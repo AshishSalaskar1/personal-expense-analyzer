@@ -20,6 +20,14 @@ class Base(DeclarativeBase):
 def init_db():
     import models  # noqa: F401 — registers models with Base
     Base.metadata.create_all(bind=engine)
+    # Safe migration: add 'ignored' column to existing DBs
+    from sqlalchemy import text
+    with engine.connect() as conn:
+        try:
+            conn.execute(text("ALTER TABLE tag_mappings ADD COLUMN ignored INTEGER NOT NULL DEFAULT 0"))
+            conn.commit()
+        except Exception:
+            pass  # column already exists
 
 
 def get_db():

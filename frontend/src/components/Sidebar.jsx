@@ -1,5 +1,5 @@
 import { NavLink } from 'react-router-dom'
-import { Upload, LayoutDashboard, Table2, Tags } from 'lucide-react'
+import { Upload, LayoutDashboard, Table2, Tags, WalletCards } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
 const links = [
@@ -11,29 +11,68 @@ const links = [
 
 export default function Sidebar() {
   return (
-    <aside className="w-56 min-h-screen border-r bg-card flex flex-col py-6 px-3 gap-1 shrink-0">
-      <div className="px-3 mb-6">
-        <h1 className="text-lg font-bold text-primary">Expense Buddy</h1>
-        <p className="text-xs text-muted-foreground">Personal Finance Tracker</p>
-      </div>
-      {links.map(({ to, label, icon: Icon }) => (
-        <NavLink
-          key={to}
-          to={to}
-          end={to === '/'}
-          className={({ isActive }) =>
-            cn(
-              'flex items-center gap-3 px-3 py-2 rounded-md text-sm font-medium transition-colors',
-              isActive
-                ? 'bg-primary text-primary-foreground'
-                : 'text-muted-foreground hover:bg-accent hover:text-accent-foreground'
-            )
-          }
-        >
-          <Icon size={16} />
-          {label}
-        </NavLink>
-      ))}
-    </aside>
+    <>
+      <aside className="sticky top-0 hidden h-dvh w-72 shrink-0 flex-col border-r border-border/80 bg-card/95 shadow-sm lg:flex">
+        <div className="px-5 pb-5 pt-6">
+          <div className="flex items-center gap-3 rounded-lg border border-border/80 bg-background px-3 py-3">
+            <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg bg-primary text-primary-foreground shadow-sm">
+              <WalletCards size={21} />
+            </div>
+            <div className="min-w-0">
+              <h1 className="truncate text-base font-semibold leading-tight tracking-normal text-foreground">
+                Expense Buddy
+              </h1>
+              <p className="mt-0.5 text-xs font-medium text-muted-foreground">Personal finance cockpit</p>
+            </div>
+          </div>
+        </div>
+
+        <nav className="flex-1 space-y-1 px-3">
+          {links.map(({ to, label, icon: Icon }) => (
+            <NavLink
+              key={to}
+              to={to}
+              end={to === '/'}
+              className={({ isActive }) =>
+                cn(
+                  'flex min-h-12 items-center gap-3 rounded-lg px-3 text-sm font-semibold transition-colors duration-200 cursor-pointer',
+                  isActive
+                    ? 'bg-primary text-primary-foreground shadow-sm'
+                    : 'text-muted-foreground hover:bg-muted hover:text-foreground'
+                )
+              }
+            >
+              <Icon size={18} />
+              <span className="truncate">{label}</span>
+            </NavLink>
+          ))}
+        </nav>
+
+        <div className="mx-5 mb-5 rounded-lg border border-border/80 bg-background p-4">
+          <p className="text-xs font-semibold uppercase tracking-[0.16em] text-muted-foreground">Status</p>
+          <p className="mt-2 text-sm font-semibold text-foreground">Local-first ledger</p>
+          <p className="mt-1 text-xs leading-5 text-muted-foreground">Upload, tag, analyze, export.</p>
+        </div>
+      </aside>
+
+      <nav className="fixed inset-x-0 bottom-0 z-40 grid grid-cols-4 border-t border-border bg-card/95 px-2 py-2 shadow-[0_-8px_24px_rgba(15,23,42,0.08)] backdrop-blur lg:hidden">
+        {links.map(({ to, label, icon: Icon }) => (
+          <NavLink
+            key={to}
+            to={to}
+            end={to === '/'}
+            className={({ isActive }) =>
+              cn(
+                'flex min-h-14 flex-col items-center justify-center gap-1 rounded-lg px-1 text-[11px] font-semibold transition-colors cursor-pointer',
+                isActive ? 'bg-primary/10 text-primary' : 'text-muted-foreground hover:bg-muted hover:text-foreground'
+              )
+            }
+          >
+            <Icon size={18} />
+            <span className="max-w-full truncate">{label}</span>
+          </NavLink>
+        ))}
+      </nav>
+    </>
   )
 }

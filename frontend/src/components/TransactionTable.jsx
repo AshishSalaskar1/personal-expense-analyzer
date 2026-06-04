@@ -12,7 +12,6 @@ import { Input } from '@/components/ui/input'
 import { Badge } from '@/components/ui/badge'
 import { updateComments } from '@/api/client'
 import { ChevronUp, ChevronDown, ChevronsUpDown } from 'lucide-react'
-import { cn } from '@/lib/utils'
 
 const helper = createColumnHelper()
 
@@ -36,13 +35,13 @@ function EditableCell({ value: initialValue, transactionId, onSave }) {
         onChange={(e) => setVal(e.target.value)}
         onBlur={commit}
         onKeyDown={(e) => e.key === 'Enter' && commit()}
-        className="h-7 text-xs"
+        className="min-h-10 text-sm"
       />
     )
   }
   return (
     <span
-      className="cursor-pointer hover:underline text-muted-foreground text-xs"
+      className="cursor-pointer text-sm text-muted-foreground hover:text-primary hover:underline"
       onClick={() => setEditing(true)}
       title="Click to edit"
     >
@@ -61,11 +60,18 @@ export default function TransactionTable({ data, onDataChange, visibleColumns = 
       helper.accessor('type', {
         header: 'Type',
         size: 70,
-        cell: (info) => (
-          <Badge variant={info.getValue() === 'debit' ? 'destructive' : 'default'}>
-            {info.getValue()}
-          </Badge>
-        ),
+        cell: (info) => {
+          const v = info.getValue()
+          return (
+            <span className={`text-[10px] font-medium px-1.5 py-0.5 rounded-full ${
+              v === 'debit'
+                ? 'bg-red-500/15 text-red-400'
+                : 'bg-emerald-500/15 text-emerald-400'
+            }`}>
+              {v}
+            </span>
+          )
+        },
       }),
       helper.accessor('amount', {
         header: 'Amount',
@@ -107,6 +113,7 @@ export default function TransactionTable({ data, onDataChange, visibleColumns = 
     [allColumns, visibleColumns]
   )
 
+  // eslint-disable-next-line react-hooks/incompatible-library
   const table = useReactTable({
     data,
     columns,
@@ -119,27 +126,27 @@ export default function TransactionTable({ data, onDataChange, visibleColumns = 
   })
 
   return (
-    <div className="space-y-2">
-      <div className="rounded-md border overflow-auto">
+    <div className="space-y-3">
+      <div className="overflow-auto rounded-lg border border-border/80 bg-card">
         <table className="w-full text-sm">
-          <thead className="bg-muted/50">
+          <thead className="bg-muted">
             {table.getHeaderGroups().map((hg) => (
               <tr key={hg.id}>
                 {hg.headers.map((header) => (
                   <th
                     key={header.id}
-                    className="px-3 py-2 text-left font-medium text-muted-foreground cursor-pointer select-none whitespace-nowrap"
+                    className="cursor-pointer select-none whitespace-nowrap px-3 py-3 text-left text-xs font-semibold uppercase tracking-[0.12em] text-muted-foreground transition-colors hover:text-foreground"
                     style={{ width: header.getSize() }}
                     onClick={header.column.getToggleSortingHandler()}
                   >
                     <span className="flex items-center gap-1">
                       {flexRender(header.column.columnDef.header, header.getContext())}
                       {header.column.getIsSorted() === 'asc' ? (
-                        <ChevronUp size={12} />
+                        <ChevronUp size={11} className="text-primary" />
                       ) : header.column.getIsSorted() === 'desc' ? (
-                        <ChevronDown size={12} />
+                        <ChevronDown size={11} className="text-primary" />
                       ) : (
-                        <ChevronsUpDown size={12} className="opacity-30" />
+                        <ChevronsUpDown size={11} className="opacity-25" />
                       )}
                     </span>
                   </th>
@@ -150,15 +157,15 @@ export default function TransactionTable({ data, onDataChange, visibleColumns = 
           <tbody>
             {table.getRowModel().rows.length === 0 ? (
               <tr>
-                <td colSpan={columns.length} className="text-center py-8 text-muted-foreground">
+                <td colSpan={columns.length} className="py-14 text-center text-sm font-medium text-muted-foreground">
                   No transactions found
                 </td>
               </tr>
             ) : (
               table.getRowModel().rows.map((row) => (
-                <tr key={row.id} className="border-t hover:bg-muted/30 transition-colors">
+                <tr key={row.id} className="border-t border-border/70 transition-colors hover:bg-muted/45">
                   {row.getVisibleCells().map((cell) => (
-                    <td key={cell.id} className="px-3 py-2" style={{ width: cell.column.getSize() }}>
+                    <td key={cell.id} className="px-3 py-3 align-middle" style={{ width: cell.column.getSize() }}>
                       {flexRender(cell.column.columnDef.cell, cell.getContext())}
                     </td>
                   ))}
@@ -170,27 +177,27 @@ export default function TransactionTable({ data, onDataChange, visibleColumns = 
       </div>
 
       {/* Pagination */}
-      <div className="flex items-center justify-between text-sm text-muted-foreground">
-        <span>
-          {table.getFilteredRowModel().rows.length} rows
-        </span>
+      <div className="flex flex-col gap-3 text-sm text-muted-foreground sm:flex-row sm:items-center sm:justify-between">
+        <span className="font-medium">{table.getFilteredRowModel().rows.length} rows</span>
         <div className="flex items-center gap-2">
           <Button
             variant="outline"
             size="sm"
             onClick={() => table.previousPage()}
             disabled={!table.getCanPreviousPage()}
+            className="px-3"
           >
             ‹ Prev
           </Button>
-          <span>
-            Page {table.getState().pagination.pageIndex + 1} of {table.getPageCount()}
+          <span className="px-1 font-semibold text-foreground">
+            {table.getState().pagination.pageIndex + 1} / {table.getPageCount()}
           </span>
           <Button
             variant="outline"
             size="sm"
             onClick={() => table.nextPage()}
             disabled={!table.getCanNextPage()}
+            className="px-3"
           >
             Next ›
           </Button>

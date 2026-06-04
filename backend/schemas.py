@@ -20,6 +20,7 @@ class TransactionOut(BaseModel):
     month: str
     tag: Optional[str] = None
     category: Optional[str] = None
+    ignored: bool = False
 
 
 class UploadResponse(BaseModel):
@@ -49,11 +50,20 @@ class TagMappingOut(BaseModel):
     particulars: str
     tag: str
     category: Optional[str] = None
+    ignored: bool = False
+    total_amount: Optional[float] = None
+    tx_count: Optional[int] = None
+    last_date: Optional[str] = None
 
 
 class TagMappingUpdate(BaseModel):
     particulars: str
     category: Optional[str] = None
+
+
+class TagIgnoreUpdate(BaseModel):
+    tag: str
+    ignored: bool
 
 
 class MonthInfo(BaseModel):

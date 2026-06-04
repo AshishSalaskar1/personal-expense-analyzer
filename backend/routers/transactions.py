@@ -63,6 +63,11 @@ def get_transactions(
     month: Optional[str] = None,
     date_from: Optional[str] = None,
     date_to: Optional[str] = None,
+    tx_type: Optional[str] = None,
+    tag: Optional[str] = None,
+    category: Optional[str] = None,
+    min_amount: Optional[float] = None,
+    max_amount: Optional[float] = None,
     db: Session = Depends(get_db),
 ):
     query = db.query(Transaction)
@@ -72,6 +77,20 @@ def get_transactions(
         query = query.filter(Transaction.date >= date_from)
     if date_to:
         query = query.filter(Transaction.date <= date_to)
+    if tx_type:
+        query = query.filter(Transaction.type == tx_type)
+    if min_amount is not None:
+        query = query.filter(Transaction.amount >= min_amount)
+    if max_amount is not None:
+        query = query.filter(Transaction.amount <= max_amount)
+    if tag or category:
+        tag_subquery = db.query(TagMapping.particulars)
+        if tag:
+            tag_subquery = tag_subquery.filter(TagMapping.tag == tag)
+        if category:
+            tag_subquery = tag_subquery.filter(TagMapping.category == category)
+        matching = [r.particulars for r in tag_subquery.all()]
+        query = query.filter(Transaction.particulars.in_(matching))
 
     transactions = query.order_by(Transaction.date, Transaction.id).all()
 
@@ -96,6 +115,7 @@ def get_transactions(
                 month=t.month,
                 tag=mapping.tag if mapping else None,
                 category=mapping.category if mapping else None,
+                ignored=bool(mapping.ignored) if mapping else False,
             )
         )
     return result

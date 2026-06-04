@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, String, Float
+from sqlalchemy import Column, Integer, String, Float, Boolean
 from database import Base
 
 
@@ -20,3 +20,4 @@ class TagMapping(Base):
     particulars = Column(String, primary_key=True)  # raw description (matches Transaction.particulars)
     tag = Column(String, nullable=False)             # LLM-resolved readable label
     category = Column(String, nullable=True)         # user fills manually
+    ignored = Column(Boolean, nullable=False, default=False)  # excluded from dashboards

@@ -15,10 +15,19 @@ import {
   ResponsiveContainer,
 } from 'recharts'
 
-const COLORS = [
-  '#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6',
-  '#06b6d4', '#f97316', '#84cc16', '#ec4899', '#6366f1',
-]
+const COLORS = ['#047857', '#4f46e5', '#d97706', '#be123c', '#0891b2', '#7c3aed', '#65a30d', '#c2410c', '#0f766e', '#b45309']
+
+const CHART_STYLE = {
+  grid: 'hsl(214 18% 85% / 0.75)',
+  tooltip: {
+    backgroundColor: '#ffffff',
+    border: '1px solid hsl(214 18% 85%)',
+    borderRadius: '8px',
+    boxShadow: '0 14px 30px rgba(15, 23, 42, 0.12)',
+    fontSize: '12px',
+  },
+  tick: { fontSize: 12, fill: '#536071' },
+}
 
 const fmt = (v) => `₹${Number(v).toLocaleString('en-IN', { maximumFractionDigits: 0 })}`
 
@@ -32,8 +41,8 @@ const fmt = (v) => `₹${Number(v).toLocaleString('en-IN', { maximumFractionDigi
  */
 export default function ChartPanel({ data = [], groupBy = 'tag', chartType = 'bar' }) {
   // Aggregate debits by groupBy × month for bar/line, or by groupBy for pie
-  const { barData, pieData, months, keys } = useMemo(() => {
-    const debits = data.filter((t) => t.type === 'debit')
+  const { barData, pieData, keys } = useMemo(() => {
+    const debits = data.filter((t) => t.type === 'debit' && !t.ignored)
 
     // Pie: sum by groupBy
     const pieMap = {}
@@ -69,12 +78,12 @@ export default function ChartPanel({ data = [], groupBy = 'tag', chartType = 'ba
       return row
     })
 
-    return { barData, pieData, months: allMonths, keys: allKeys }
+    return { barData, pieData, keys: allKeys }
   }, [data, groupBy])
 
   if (!data.length) {
     return (
-      <div className="flex items-center justify-center h-48 text-muted-foreground text-sm">
+      <div className="flex h-64 items-center justify-center rounded-lg border border-dashed border-border bg-muted/40 text-sm font-medium text-muted-foreground">
         No data to display
       </div>
     )
@@ -90,14 +99,19 @@ export default function ChartPanel({ data = [], groupBy = 'tag', chartType = 'ba
             nameKey="name"
             cx="50%"
             cy="50%"
-            outerRadius={110}
-            label={({ name, percent }) => `${name} (${(percent * 100).toFixed(0)}%)`}
+            innerRadius={58}
+            outerRadius={112}
+            paddingAngle={2}
           >
             {pieData.map((_, i) => (
               <Cell key={i} fill={COLORS[i % COLORS.length]} />
             ))}
           </Pie>
-          <Tooltip formatter={(v) => fmt(v)} />
+          <Tooltip
+            formatter={(v) => fmt(v)}
+            contentStyle={CHART_STYLE.tooltip}
+          />
+          <Legend wrapperStyle={{ fontSize: '12px', lineHeight: '20px' }} />
         </PieChart>
       </ResponsiveContainer>
     )
@@ -106,31 +120,60 @@ export default function ChartPanel({ data = [], groupBy = 'tag', chartType = 'ba
   if (chartType === 'line') {
     return (
       <ResponsiveContainer width="100%" height={320}>
-        <LineChart data={barData} margin={{ top: 5, right: 20, left: 10, bottom: 5 }}>
-          <CartesianGrid strokeDasharray="3 3" />
-          <XAxis dataKey="month" />
-          <YAxis tickFormatter={(v) => `₹${(v / 1000).toFixed(0)}k`} />
-          <Tooltip formatter={(v) => fmt(v)} />
-          <Legend />
+        <LineChart data={barData} margin={{ top: 8, right: 20, left: 0, bottom: 5 }}>
+          <CartesianGrid strokeDasharray="4 4" stroke={CHART_STYLE.grid} vertical={false} />
+          <XAxis dataKey="month" tick={CHART_STYLE.tick} axisLine={false} tickLine={false} />
+          <YAxis tickFormatter={(v) => `₹${(v / 1000).toFixed(0)}k`} tick={CHART_STYLE.tick} axisLine={false} tickLine={false} width={54} />
+          <Tooltip
+            formatter={(v) => fmt(v)}
+            contentStyle={CHART_STYLE.tooltip}
+          />
+          <Legend wrapperStyle={{ fontSize: '12px' }} />
           {keys.map((k, i) => (
-            <Line key={k} type="monotone" dataKey={k} stroke={COLORS[i % COLORS.length]} dot={false} />
+            <Line key={k} type="monotone" dataKey={k} stroke={COLORS[i % COLORS.length]} dot={false} strokeWidth={2} />
           ))}
         </LineChart>
       </ResponsiveContainer>
     )
   }
 
-  // Default: grouped bar chart
+  // Grouped bar chart (bars side-by-side, no stackId)
+  if (chartType === 'grouped') {
+    return (
+      <ResponsiveContainer width="100%" height={320}>
+        <BarChart data={barData} margin={{ top: 8, right: 20, left: 0, bottom: 5 }} barCategoryGap="20%" barGap={3}>
+          <CartesianGrid strokeDasharray="4 4" stroke={CHART_STYLE.grid} vertical={false} />
+          <XAxis dataKey="month" tick={CHART_STYLE.tick} axisLine={false} tickLine={false} />
+          <YAxis tickFormatter={(v) => `₹${(v / 1000).toFixed(0)}k`} tick={CHART_STYLE.tick} axisLine={false} tickLine={false} width={54} />
+          <Tooltip
+            formatter={(v) => fmt(v)}
+            contentStyle={CHART_STYLE.tooltip}
+            cursor={{ fill: 'hsl(210 20% 94%)' }}
+          />
+          <Legend wrapperStyle={{ fontSize: '12px' }} />
+          {keys.map((k, i) => (
+            <Bar key={k} dataKey={k} fill={COLORS[i % COLORS.length]} radius={[3, 3, 0, 0]} />
+          ))}
+        </BarChart>
+      </ResponsiveContainer>
+    )
+  }
+
+  // Default: stacked bar chart
   return (
     <ResponsiveContainer width="100%" height={320}>
-      <BarChart data={barData} margin={{ top: 5, right: 20, left: 10, bottom: 5 }}>
-        <CartesianGrid strokeDasharray="3 3" />
-        <XAxis dataKey="month" />
-        <YAxis tickFormatter={(v) => `₹${(v / 1000).toFixed(0)}k`} />
-        <Tooltip formatter={(v) => fmt(v)} />
-        <Legend />
+      <BarChart data={barData} margin={{ top: 8, right: 20, left: 0, bottom: 5 }}>
+        <CartesianGrid strokeDasharray="4 4" stroke={CHART_STYLE.grid} vertical={false} />
+        <XAxis dataKey="month" tick={CHART_STYLE.tick} axisLine={false} tickLine={false} />
+        <YAxis tickFormatter={(v) => `₹${(v / 1000).toFixed(0)}k`} tick={CHART_STYLE.tick} axisLine={false} tickLine={false} width={54} />
+        <Tooltip
+          formatter={(v) => fmt(v)}
+          contentStyle={CHART_STYLE.tooltip}
+          cursor={{ fill: 'hsl(210 20% 94%)' }}
+        />
+        <Legend wrapperStyle={{ fontSize: '12px' }} />
         {keys.map((k, i) => (
-          <Bar key={k} dataKey={k} fill={COLORS[i % COLORS.length]} stackId="stack" />
+          <Bar key={k} dataKey={k} fill={COLORS[i % COLORS.length]} stackId="stack" radius={[2, 2, 0, 0]} />
         ))}
       </BarChart>
     </ResponsiveContainer>
