@@ -103,6 +103,26 @@ function CategoryCell({ mapping, onSave, existingCategories = [], prominent = fa
   )
 }
 
+function TypeBadge({ type }) {
+  const tone = {
+    debit: 'bg-red-50 text-red-700 border-red-200',
+    credit: 'bg-emerald-50 text-emerald-700 border-emerald-200',
+    mixed: 'bg-amber-50 text-amber-700 border-amber-200',
+  }[type] || 'bg-muted text-muted-foreground border-border'
+
+  return (
+    <span className={`inline-flex min-h-6 items-center rounded-full border px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide ${tone}`}>
+      {type || '—'}
+    </span>
+  )
+}
+
+function inferMappingType(mapping) {
+  if (mapping.type) return mapping.type
+  if (!mapping.tx_count) return null
+  return Number(mapping.total_amount || 0) > 0 ? 'debit' : 'credit'
+}
+
 export default function TagManager() {
   const [mappings, setMappings] = useState([])
   const [loading, setLoading] = useState(true)
@@ -370,6 +390,9 @@ export default function TagManager() {
                         <th className="px-3 py-2 text-left font-medium text-muted-foreground">
                           Particulars
                         </th>
+                        <th className="px-3 py-2 text-left font-medium text-muted-foreground w-24">
+                          Type
+                        </th>
                         <th className="px-3 py-2 text-left font-medium text-muted-foreground w-24 text-right">
                           Amount
                         </th>
@@ -386,6 +409,9 @@ export default function TagManager() {
                         <tr key={m.particulars} className="border-t border-border/40 hover:bg-muted/20 transition-colors">
                           <td className="max-w-xs truncate px-3 py-2 font-medium text-foreground" title={m.particulars}>
                             {compactLongIdentifiers(m.particulars)}
+                          </td>
+                          <td className="px-3 py-2">
+                            <TypeBadge type={inferMappingType(m)} />
                           </td>
                           <td className="px-3 py-2 text-right tabular-nums text-foreground/80">
                             {m.total_amount != null

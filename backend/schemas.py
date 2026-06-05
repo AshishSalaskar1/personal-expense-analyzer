@@ -51,6 +51,7 @@ class TagMappingOut(BaseModel):
     tag: str
     category: Optional[str] = None
     ignored: bool = False
+    type: Optional[str] = None
     total_amount: Optional[float] = None
     tx_count: Optional[int] = None
     last_date: Optional[str] = None

@@ -38,6 +38,8 @@ def get_tag_mappings(db: Session = Depends(get_db)):
                 case((Transaction.type == "debit", Transaction.amount), else_=0)
             ).label("total_amount"),
             func.count(Transaction.id).label("tx_count"),
+            func.sum(case((Transaction.type == "debit", 1), else_=0)).label("debit_count"),
+            func.sum(case((Transaction.type == "credit", 1), else_=0)).label("credit_count"),
             func.max(Transaction.date).label("last_date"),
         )
         .group_by(Transaction.particulars)
@@ -48,12 +50,21 @@ def get_tag_mappings(db: Session = Depends(get_db)):
     results = []
     for m in mappings:
         agg = agg_map.get(m.particulars)
+        tx_type = None
+        if agg:
+            if agg.debit_count and agg.credit_count:
+                tx_type = "mixed"
+            elif agg.debit_count:
+                tx_type = "debit"
+            elif agg.credit_count:
+                tx_type = "credit"
         results.append(
             TagMappingOut(
                 particulars=m.particulars,
                 tag=m.tag,
                 category=m.category,
                 ignored=bool(m.ignored),
+                type=tx_type,
                 total_amount=round(agg.total_amount, 2) if agg else None,
                 tx_count=agg.tx_count if agg else 0,
                 last_date=agg.last_date if agg else None,
