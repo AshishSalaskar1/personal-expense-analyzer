@@ -2,6 +2,7 @@ import { useEffect, useState, useMemo } from 'react'
 import PageShell from '@/components/PageShell'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'  // used for search bar
+import { Select } from '@/components/ui/select'
 import { Badge } from '@/components/ui/badge'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Alert, AlertDescription } from '@/components/ui/alert'
@@ -12,40 +13,76 @@ import { compactLongIdentifiers } from '@/lib/compactIdentifiers'
 function CategoryCell({ mapping, onSave, existingCategories = [], prominent = false }) {
   const [editing, setEditing] = useState(false)
   const [val, setVal] = useState(mapping.category ?? '')
-  const listId = `cat-list-${mapping.particulars.replace(/\W/g, '_')}`
+  const [customMode, setCustomMode] = useState(false)
 
   // Sync local val when the category is updated externally (e.g. bulk tag save)
   useEffect(() => {
-    if (!editing) queueMicrotask(() => setVal(mapping.category ?? ''))
+    if (!editing) {
+      queueMicrotask(() => setVal(mapping.category ?? ''))
+      setCustomMode(false)
+    }
   }, [mapping.category, editing])
 
-  const commit = async () => {
+  const commit = async (nextValue = val) => {
     setEditing(false)
-    const newCat = val.trim() || null
+    setCustomMode(false)
+    const newCat = nextValue.trim() || null
     if (newCat !== (mapping.category ?? null)) {
       await onSave(mapping.particulars, newCat)
     }
   }
 
+  const handleSelect = (event) => {
+    const nextValue = event.target.value
+    if (nextValue === '__new__') {
+      setCustomMode(true)
+      setVal('')
+      return
+    }
+    setVal(nextValue)
+    queueMicrotask(() => commit(nextValue))
+  }
+
   if (editing) {
     return (
-      <>
-        <datalist id={listId}>
-          {existingCategories.map((c) => (
-            <option key={c} value={c} />
-          ))}
-        </datalist>
-        <input
-          autoFocus
-          list={listId}
-          value={val}
-          onChange={(e) => setVal(e.target.value)}
-          onBlur={commit}
-          onKeyDown={(e) => { if (e.key === 'Enter') commit() }}
-          className={`${prominent ? 'w-full min-w-56' : 'w-44'} min-h-10 rounded-lg border border-input bg-card px-3 text-sm font-semibold focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring`}
-          placeholder="e.g. Groceries"
-        />
-      </>
+      <div className={`${prominent ? 'w-full min-w-56' : 'w-56'} space-y-2`}>
+        {!customMode ? (
+          <Select
+            autoFocus
+            value={mapping.category ?? ''}
+            onChange={handleSelect}
+            onBlur={() => setEditing(false)}
+            className="min-h-10 rounded-lg font-semibold"
+          >
+            <option value="">No category</option>
+            {existingCategories.map((category) => (
+              <option key={category} value={category}>{category}</option>
+            ))}
+            <option value="__new__">+ New category...</option>
+          </Select>
+        ) : (
+          <div className="flex gap-2">
+            <Input
+              autoFocus
+              value={val}
+              onChange={(e) => setVal(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') commit()
+                if (e.key === 'Escape') setEditing(false)
+              }}
+              className="min-h-10 text-sm font-semibold"
+              placeholder="New category"
+            />
+            <button
+              type="button"
+              onClick={() => commit()}
+              className="min-h-10 rounded-lg bg-primary px-3 text-xs font-bold text-primary-foreground transition-colors hover:bg-primary/90 cursor-pointer"
+            >
+              Save
+            </button>
+          </div>
+        )}
+      </div>
     )
   }
 
@@ -72,8 +109,11 @@ export default function TagManager() {
   const [error, setError] = useState(null)
   const [uncategorizedOnly, setUncategorizedOnly] = useState(false)
   const [excludedOnly, setExcludedOnly] = useState(false)
+  const [sortBy, setSortBy] = useState('count')
   const [search, setSearch] = useState('')
   const [expandedTags, setExpandedTags] = useState(() => new Set())
+
+  const fmtMoney = (value) => `₹${Number(value || 0).toLocaleString('en-IN', { maximumFractionDigits: 0 })}`
 
   const load = () => {
     setLoading(true)
@@ -156,8 +196,18 @@ export default function TagManager() {
       if (!groups[m.tag]) groups[m.tag] = []
       groups[m.tag].push(m)
     }
-    return Object.entries(groups).sort((a, b) => b[1].length - a[1].length)
-  }, [mappings, uncategorizedOnly, excludedOnly, search])
+    return Object.entries(groups)
+      .map(([tag, items]) => {
+        const totalAmount = items.reduce((sum, item) => sum + Number(item.total_amount || 0), 0)
+        const avgAmount = items.length ? totalAmount / items.length : 0
+        return { tag, items, totalAmount, avgAmount }
+      })
+      .sort((a, b) => {
+        if (sortBy === 'total') return b.totalAmount - a.totalAmount
+        if (sortBy === 'avg') return b.avgAmount - a.avgAmount
+        return b.items.length - a.items.length
+      })
+  }, [mappings, uncategorizedOnly, excludedOnly, search, sortBy])
 
   const uncategorizedCount = useMemo(
     () => mappings.filter((m) => !m.category).length,
@@ -208,6 +258,14 @@ export default function TagManager() {
           className="max-w-xl"
         />
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:gap-5">
+          <div className="flex items-center gap-2 text-sm text-muted-foreground">
+            <span className="font-bold text-foreground">Sort</span>
+            <Select value={sortBy} onChange={(event) => setSortBy(event.target.value)} className="min-h-10 w-44 text-sm font-semibold">
+              <option value="count">Most particulars</option>
+              <option value="total">Highest total</option>
+              <option value="avg">Highest avg amount</option>
+            </Select>
+          </div>
           <label className="flex items-center gap-2 text-sm cursor-pointer text-muted-foreground hover:text-foreground transition-colors select-none">
             <Checkbox
               checked={uncategorizedOnly}
@@ -243,7 +301,7 @@ export default function TagManager() {
         </div>
       ) : (
         <div className="space-y-3">
-          {grouped.map(([tag, items]) => {
+          {grouped.map(({ tag, items, totalAmount, avgAmount }) => {
             const expanded = expandedTags.has(tag)
             return (
             <Card key={tag} className={`transition-opacity ${items[0].ignored ? 'opacity-55' : ''}`}>
@@ -257,6 +315,12 @@ export default function TagManager() {
                       </span>
                       <span className="text-xs font-bold text-muted-foreground">
                         {items.length} particular{items.length !== 1 ? 's' : ''}
+                      </span>
+                      <span className="rounded-full border border-border bg-muted px-2 py-1 text-[10px] font-bold text-muted-foreground">
+                        Total {fmtMoney(totalAmount)}
+                      </span>
+                      <span className="rounded-full border border-border bg-muted px-2 py-1 text-[10px] font-bold text-muted-foreground">
+                        Avg {fmtMoney(avgAmount)}
                       </span>
                       {items[0].ignored && (
                         <span className="inline-flex items-center gap-1 rounded-full border border-border bg-muted px-2 py-1 text-[10px] font-bold text-muted-foreground">
