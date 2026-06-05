@@ -8,6 +8,7 @@ import {
   BarChart,
   CartesianGrid,
   Cell,
+  LabelList,
   Legend,
   Line,
   Pie,
@@ -17,24 +18,27 @@ import {
   XAxis,
   YAxis,
 } from 'recharts'
-import { Activity, ArrowDownRight, ArrowUpRight, BadgeIndianRupee, ChevronDown, ChevronRight, PieChart as PieIcon, ReceiptText, TrendingDown, TrendingUp } from 'lucide-react'
+import { Activity, ChevronDown, ChevronRight, PieChart as PieIcon, ReceiptText } from 'lucide-react'
 
 const fmt = (value) => `₹${Number(value).toLocaleString('en-IN', { maximumFractionDigits: 0 })}`
 const shortFmt = (value) => `₹${(Number(value) / 1000).toFixed(0)}k`
-const COLORS = ['#047857', '#4f46e5', '#d97706', '#be123c', '#0891b2', '#7c3aed', '#65a30d', '#c2410c']
+
+const CHART_COLORS = ['#B45309', '#1D4ED8', '#7C3AED', '#047857', '#BE123C', '#0E7490', '#A16207', '#9333EA']
+const COLORS = CHART_COLORS
 
 const CHART_STYLE = {
-  cursor: { fill: 'hsl(var(--muted))', fillOpacity: 0.55 },
-  grid: 'hsl(var(--border) / 0.75)',
+  cursor: { fill: 'hsl(var(--muted))', fillOpacity: 0.65 },
+  grid: 'hsl(var(--border) / 0.9)',
   tooltip: {
-    backgroundColor: 'hsl(var(--card))',
+    backgroundColor: '#ffffff',
     border: '1px solid hsl(var(--border))',
-    borderRadius: '8px',
-    boxShadow: '0 14px 30px rgba(15, 23, 42, 0.12)',
+    borderRadius: '10px',
+    boxShadow: '0 8px 30px rgba(0,0,0,0.08)',
     color: 'hsl(var(--foreground))',
     fontSize: '12px',
+    fontFamily: "'Bricolage Grotesque', sans-serif",
   },
-  tick: { fontSize: 12, fill: 'hsl(var(--muted-foreground))' },
+  tick: { fontSize: 12, fontWeight: 650, fill: 'hsl(var(--muted-foreground))' },
 }
 
 const DIM_OPTIONS = [
@@ -42,30 +46,26 @@ const DIM_OPTIONS = [
   { value: 'category', label: 'Category' },
 ]
 const DIM_LABEL = { tag: 'Tag', category: 'Category' }
+const DASHBOARD_SECTIONS_KEY = 'dashboardSections:v2'
 
-function StatCard({ label, value, detail, icon: Icon, tone = 'primary' }) {
-  const toneClass = {
-    primary: 'bg-primary/10 text-primary',
-    income: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-950/50 dark:text-emerald-300',
-    spend: 'bg-rose-100 text-rose-700 dark:bg-rose-950/50 dark:text-rose-300',
-    amber: 'bg-amber-100 text-amber-700 dark:bg-amber-950/50 dark:text-amber-300',
+// CRED-style stat card — big bold number, accent top stripe, no icon
+function StatCard({ label, value, detail, tone = 'primary' }) {
+  const accentColor = {
+    primary: CHART_COLORS[1],
+    income: CHART_COLORS[3],
+    spend: CHART_COLORS[0],
+    amber: CHART_COLORS[2],
   }[tone]
 
   return (
-    <Card>
+    <Card className="relative overflow-hidden">
       <CardContent className="p-5">
-        <div className="flex items-start justify-between gap-4">
-          <div className="min-w-0">
-            <p className="text-xs font-semibold uppercase tracking-[0.16em] text-muted-foreground">{label}</p>
-            <p className="mt-2 break-words text-2xl font-semibold leading-tight text-foreground tabular-nums sm:text-3xl">
-              {value}
-            </p>
-            <p className="mt-2 text-sm leading-5 text-muted-foreground">{detail}</p>
-          </div>
-          <div className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-lg ${toneClass}`}>
-            <Icon size={21} />
-          </div>
-        </div>
+        <div className="absolute inset-x-0 top-0 h-[3px] rounded-t-xl" style={{ backgroundColor: accentColor }} />
+        <p className="mt-1 text-[10px] font-bold uppercase tracking-[0.22em] text-muted-foreground">{label}</p>
+        <p className="mt-2.5 break-words text-3xl font-extrabold tabular-nums tracking-tight text-foreground sm:text-[2rem]">
+          {value}
+        </p>
+        {detail && <p className="mt-2 text-xs leading-relaxed text-muted-foreground">{detail}</p>}
       </CardContent>
     </Card>
   )
@@ -77,17 +77,16 @@ function CollapsibleSection({ title, collapsed, onToggle, children }) {
       <button
         type="button"
         onClick={onToggle}
-        className="group flex w-full items-center gap-3 py-1"
+        className="group flex w-full items-center gap-3 py-2"
       >
-        <span className="whitespace-nowrap text-[11px] font-bold uppercase tracking-[0.18em] text-muted-foreground transition-colors group-hover:text-foreground">
+        <span className="text-[10px] font-bold uppercase tracking-[0.22em] text-muted-foreground transition-colors group-hover:text-foreground">
           {title}
         </span>
         <div className="h-px flex-1 bg-border" />
-        {collapsed ? (
-          <ChevronRight size={14} className="shrink-0 text-muted-foreground" />
-        ) : (
-          <ChevronDown size={14} className="shrink-0 text-muted-foreground" />
-        )}
+        <ChevronDown
+          size={14}
+          className={`shrink-0 text-muted-foreground transition-transform duration-200 ${collapsed ? '-rotate-90' : ''}`}
+        />
       </button>
       {!collapsed && <div className="mt-4">{children}</div>}
     </div>
@@ -167,12 +166,12 @@ export default function DashboardCharts({ transactions = [], selectedMonth = '',
   const topTag = tagBreakdown[0]
 
   const [collapsedSections, setCollapsedSections] = useState(() => {
-    try { return JSON.parse(localStorage.getItem('dashboardSections') || '{}') }
+    try { return JSON.parse(localStorage.getItem(DASHBOARD_SECTIONS_KEY) || '{}') }
     catch { return {} }
   })
   const toggleSection = (key) => setCollapsedSections((prev) => {
     const next = { ...prev, [key]: !prev[key] }
-    localStorage.setItem('dashboardSections', JSON.stringify(next))
+    localStorage.setItem(DASHBOARD_SECTIONS_KEY, JSON.stringify(next))
     return next
   })
 
@@ -248,11 +247,11 @@ export default function DashboardCharts({ transactions = [], selectedMonth = '',
     <div className="space-y-5">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h3 className="text-lg font-semibold text-foreground">Dashboard</h3>
-          <p className="mt-1 text-sm text-muted-foreground">Charts update from the filtered transaction set.</p>
+          <h3 className="text-2xl font-extrabold tracking-tight text-foreground">Dashboard</h3>
+          <p className="mt-0.5 text-xs text-muted-foreground">Charts update from the filtered transaction set.</p>
         </div>
-        <div className="flex min-w-56 items-center gap-2 rounded-lg border border-border bg-card px-3 py-2 shadow-sm">
-          <span className="text-xs font-semibold uppercase tracking-[0.14em] text-muted-foreground">Month</span>
+        <div className="flex min-w-56 items-center gap-2 rounded-xl border border-border bg-card px-3 py-2">
+          <span className="text-[10px] font-bold uppercase tracking-[0.18em] text-muted-foreground">Month</span>
           <Select value={activeMonth} onChange={(event) => onSelectedMonthChange?.(event.target.value)} className="min-w-36 flex-1 border-0 bg-transparent p-0 shadow-none focus:ring-0">
             {availableMonths.map((month) => (
               <option key={month} value={month}>{month}</option>
@@ -263,10 +262,10 @@ export default function DashboardCharts({ transactions = [], selectedMonth = '',
 
       <CollapsibleSection title="Summary" collapsed={!!collapsedSections.summary} onToggle={() => toggleSection('summary')}>
         <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4">
-          <StatCard label="Total spend" value={fmt(monthSummary.debit)} detail={`${monthSummary.count} clean transactions`} icon={TrendingDown} tone="spend" />
-          <StatCard label="Credits" value={fmt(monthSummary.credit)} detail="Income, refunds, and transfers" icon={TrendingUp} tone="income" />
-          <StatCard label={net >= 0 ? 'Surplus' : 'Deficit'} value={fmt(Math.abs(net))} detail={`${Math.round(savingsRate)}% savings rate`} icon={net >= 0 ? ArrowUpRight : ArrowDownRight} tone={net >= 0 ? 'primary' : 'spend'} />
-          <StatCard label="Avg debit" value={fmt(monthSummary.avgDebit)} detail={topTag ? `Largest tag: ${topTag.name}` : 'No debit data yet'} icon={BadgeIndianRupee} tone="amber" />
+          <StatCard label="Total spend" value={fmt(monthSummary.debit)} detail={`${monthSummary.count} clean transactions`} tone="spend" />
+          <StatCard label="Credits" value={fmt(monthSummary.credit)} detail="Income, refunds, and transfers" tone="income" />
+          <StatCard label={net >= 0 ? 'Surplus' : 'Deficit'} value={fmt(Math.abs(net))} detail={`${Math.round(savingsRate)}% savings rate`} tone={net >= 0 ? 'primary' : 'spend'} />
+          <StatCard label="Avg debit" value={fmt(monthSummary.avgDebit)} detail={topTag ? `Largest tag: ${topTag.name}` : 'No debit data yet'} tone="amber" />
         </div>
       </CollapsibleSection>
 
@@ -284,9 +283,9 @@ export default function DashboardCharts({ transactions = [], selectedMonth = '',
                   <YAxis tickFormatter={shortFmt} tick={CHART_STYLE.tick} tickLine={false} axisLine={false} width={54} />
                   <Tooltip formatter={(value) => fmt(value)} contentStyle={CHART_STYLE.tooltip} />
                   <Legend wrapperStyle={{ fontSize: '12px', paddingTop: '10px' }} />
-                  <Area type="monotone" dataKey="credit" name="Credit" stroke="#047857" fill="#047857" fillOpacity={0.12} strokeWidth={2.5} />
-                  <Area type="monotone" dataKey="debit" name="Spend" stroke="#be123c" fill="#be123c" fillOpacity={0.1} strokeWidth={2.5} />
-                  <Line type="monotone" dataKey="net" name="Net" stroke="#4f46e5" strokeWidth={2.5} dot={false} />
+                  <Area type="monotone" dataKey="credit" name="Credit" stroke={CHART_COLORS[3]} fill={CHART_COLORS[3]} fillOpacity={0.16} strokeWidth={3} />
+                  <Area type="monotone" dataKey="debit" name="Spend" stroke={CHART_COLORS[0]} fill={CHART_COLORS[0]} fillOpacity={0.18} strokeWidth={3} />
+                  <Line type="monotone" dataKey="net" name="Net" stroke={CHART_COLORS[1]} strokeWidth={3} dot={false} strokeDasharray="5 3" />
                 </AreaChart>
               </ResponsiveContainer>
             </CardContent>
@@ -370,12 +369,20 @@ export default function DashboardCharts({ transactions = [], selectedMonth = '',
                 <div className="flex h-72 items-center justify-center text-sm text-muted-foreground">No debit data for this month.</div>
               ) : (
                 <ResponsiveContainer width="100%" height={300}>
-                  <BarChart data={tagBreakdown} layout="vertical" margin={{ top: 0, right: 18, left: 24, bottom: 0 }}>
-                    <CartesianGrid strokeDasharray="4 4" stroke={CHART_STYLE.grid} horizontal={false} />
+                  <BarChart data={tagBreakdown} layout="vertical" margin={{ top: 0, right: 58, left: 24, bottom: 0 }}>
+                    <CartesianGrid strokeDasharray="3 3" stroke={CHART_STYLE.grid} horizontal={false} />
                     <XAxis type="number" tickFormatter={shortFmt} tick={CHART_STYLE.tick} axisLine={false} tickLine={false} />
                     <YAxis type="category" dataKey="name" width={96} tick={CHART_STYLE.tick} axisLine={false} tickLine={false} />
                     <Tooltip formatter={(value) => fmt(value)} contentStyle={CHART_STYLE.tooltip} cursor={CHART_STYLE.cursor} />
-                    <Bar dataKey="value" fill="#047857" radius={[0, 6, 6, 0]} />
+                    <Bar dataKey="value" fill={CHART_COLORS[0]} stroke="#7C2D12" strokeWidth={1.5} radius={[0, 8, 8, 0]} barSize={18}>
+                      <LabelList
+                        dataKey="value"
+                        position="right"
+                        offset={6}
+                        formatter={(v) => `₹${(v / 1000).toFixed(0)}k`}
+                        style={{ fontSize: 11, fontWeight: 800, fill: '#7C2D12' }}
+                      />
+                    </Bar>
                   </BarChart>
                 </ResponsiveContainer>
               )}
@@ -391,12 +398,19 @@ export default function DashboardCharts({ transactions = [], selectedMonth = '',
                 <div className="flex h-72 items-center justify-center text-sm text-muted-foreground">No daily spend data for this month.</div>
               ) : (
                 <ResponsiveContainer width="100%" height={300}>
-                  <BarChart data={daySpend} margin={{ top: 8, right: 18, left: 0, bottom: 0 }}>
-                    <CartesianGrid strokeDasharray="4 4" stroke={CHART_STYLE.grid} vertical={false} />
+                  <BarChart data={daySpend} margin={{ top: 28, right: 18, left: 0, bottom: 0 }}>
+                    <CartesianGrid strokeDasharray="3 3" stroke={CHART_STYLE.grid} vertical={false} />
                     <XAxis dataKey="day" tick={CHART_STYLE.tick} axisLine={false} tickLine={false} />
-                    <YAxis tickFormatter={shortFmt} tick={CHART_STYLE.tick} axisLine={false} tickLine={false} width={54} />
+                    <YAxis tickFormatter={shortFmt} tick={CHART_STYLE.tick} axisLine={false} tickLine={false} width={48} />
                     <Tooltip formatter={(value) => fmt(value)} labelFormatter={(day) => `Day ${day}`} contentStyle={CHART_STYLE.tooltip} cursor={CHART_STYLE.cursor} />
-                    <Bar dataKey="amount" name="Spend" fill="#4f46e5" radius={[6, 6, 0, 0]} />
+                    <Bar dataKey="amount" name="Spend" fill={CHART_COLORS[1]} stroke="#1E3A8A" strokeWidth={1.5} radius={[8, 8, 0, 0]} barSize={18}>
+                      <LabelList
+                        dataKey="amount"
+                        position="top"
+                        formatter={(v) => (v >= 1000 ? `₹${(v / 1000).toFixed(0)}k` : '')}
+                        style={{ fontSize: 10, fontWeight: 800, fill: '#1E3A8A' }}
+                      />
+                    </Bar>
                   </BarChart>
                 </ResponsiveContainer>
               )}

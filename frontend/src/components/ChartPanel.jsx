@@ -16,20 +16,21 @@ import {
 } from 'recharts'
 import { ChevronRight } from 'lucide-react'
 
-const COLORS = ['#047857', '#4f46e5', '#d97706', '#be123c', '#0891b2', '#7c3aed', '#65a30d', '#c2410c', '#0f766e', '#b45309']
+const COLORS = ['#B45309', '#1D4ED8', '#7C3AED', '#047857', '#BE123C', '#0E7490', '#A16207', '#9333EA']
 
 const CHART_STYLE = {
-  cursor: { fill: 'hsl(var(--muted))', fillOpacity: 0.55 },
-  grid: 'hsl(var(--border) / 0.75)',
+  cursor: { fill: 'hsl(var(--muted))', fillOpacity: 0.65 },
+  grid: 'hsl(var(--border) / 0.9)',
   tooltip: {
-    backgroundColor: 'hsl(var(--card))',
+    backgroundColor: '#ffffff',
     border: '1px solid hsl(var(--border))',
-    borderRadius: '8px',
-    boxShadow: '0 14px 30px rgba(15, 23, 42, 0.12)',
+    borderRadius: '10px',
+    boxShadow: '0 8px 30px rgba(0,0,0,0.08)',
     color: 'hsl(var(--foreground))',
     fontSize: '12px',
+    fontFamily: "'Bricolage Grotesque', sans-serif",
   },
-  tick: { fontSize: 12, fill: 'hsl(var(--muted-foreground))' },
+  tick: { fontSize: 12, fontWeight: 650, fill: 'hsl(var(--muted-foreground))' },
 }
 
 const fmt = (v) => `₹${Number(v).toLocaleString('en-IN', { maximumFractionDigits: 0 })}`
@@ -228,6 +229,9 @@ export default function ChartPanel({ data = [], groupBy = 'tag', chartType = 'ba
                 key={k}
                 dataKey={k}
                 fill={COLORS[i % COLORS.length]}
+                fillOpacity={0.95}
+                stroke="hsl(var(--foreground) / 0.28)"
+                strokeWidth={1}
                 radius={[3, 3, 0, 0]}
                 cursor={canDrill ? 'pointer' : 'default'}
                 onClick={canDrill ? () => setDrillKey(k) : undefined}
@@ -259,6 +263,9 @@ export default function ChartPanel({ data = [], groupBy = 'tag', chartType = 'ba
               key={k}
               dataKey={k}
               fill={COLORS[i % COLORS.length]}
+              fillOpacity={0.95}
+              stroke="hsl(var(--foreground) / 0.28)"
+              strokeWidth={1}
               stackId="stack"
               radius={[2, 2, 0, 0]}
               cursor={canDrill ? 'pointer' : 'default'}

@@ -1,4 +1,4 @@
-@import url('https://fonts.googleapis.com/css2?family=Fira+Sans:wght@400;500;600;700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,300;12..96,400;12..96,500;12..96,600;12..96,700;12..96,800&display=swap');
 
 @tailwind base;
 @tailwind components;
@@ -7,49 +7,49 @@
 @layer base {
   :root {
     color-scheme: light;
-    --background: 210 24% 97%;
-    --foreground: 217 33% 17%;
+    --background: 36 26% 97%;
+    --foreground: 222 35% 10%;
     --card: 0 0% 100%;
-    --card-foreground: 217 33% 17%;
+    --card-foreground: 222 35% 10%;
     --popover: 0 0% 100%;
-    --popover-foreground: 217 33% 17%;
-    --primary: 166 76% 28%;
+    --popover-foreground: 222 35% 10%;
+    --primary: 222 35% 10%;
     --primary-foreground: 0 0% 100%;
-    --secondary: 227 58% 24%;
-    --secondary-foreground: 0 0% 100%;
-    --muted: 210 20% 94%;
-    --muted-foreground: 215 16% 39%;
-    --accent: 38 92% 50%;
-    --accent-foreground: 217 33% 17%;
-    --destructive: 0 72% 46%;
+    --secondary: 38 18% 92%;
+    --secondary-foreground: 222 35% 10%;
+    --muted: 38 18% 92%;
+    --muted-foreground: 218 16% 34%;
+    --accent: 12 70% 45%;
+    --accent-foreground: 0 0% 100%;
+    --destructive: 0 72% 51%;
     --destructive-foreground: 0 0% 100%;
-    --border: 214 18% 85%;
-    --input: 214 18% 80%;
-    --ring: 166 76% 28%;
-    --radius: 0.5rem;
+    --border: 38 16% 82%;
+    --input: 38 14% 78%;
+    --ring: 222 35% 10%;
+    --radius: 0.75rem;
   }
 
   .dark {
     color-scheme: dark;
-    --background: 222 33% 8%;
-    --foreground: 210 24% 94%;
-    --card: 220 28% 12%;
-    --card-foreground: 210 24% 94%;
-    --popover: 220 28% 12%;
-    --popover-foreground: 210 24% 94%;
-    --primary: 166 72% 42%;
-    --primary-foreground: 222 33% 8%;
-    --secondary: 221 50% 26%;
-    --secondary-foreground: 210 24% 94%;
-    --muted: 220 22% 17%;
-    --muted-foreground: 215 18% 70%;
-    --accent: 42 92% 58%;
-    --accent-foreground: 222 33% 8%;
-    --destructive: 0 76% 56%;
+    --background: 30 10% 7%;
+    --foreground: 38 22% 93%;
+    --card: 30 10% 10%;
+    --card-foreground: 38 22% 93%;
+    --popover: 30 10% 10%;
+    --popover-foreground: 38 22% 93%;
+    --primary: 38 72% 62%;
+    --primary-foreground: 30 10% 7%;
+    --secondary: 30 8% 15%;
+    --secondary-foreground: 38 22% 93%;
+    --muted: 30 6% 13%;
+    --muted-foreground: 38 8% 60%;
+    --accent: 12 60% 56%;
+    --accent-foreground: 0 0% 100%;
+    --destructive: 0 72% 56%;
     --destructive-foreground: 0 0% 100%;
-    --border: 219 18% 24%;
-    --input: 219 18% 28%;
-    --ring: 166 72% 42%;
+    --border: 30 8% 18%;
+    --input: 30 8% 22%;
+    --ring: 38 72% 62%;
   }
 }
 
@@ -57,16 +57,16 @@
   * { @apply border-border; }
   body {
     @apply bg-background text-foreground;
-    font-family: 'Fira Sans', system-ui, -apple-system, sans-serif;
+    font-family: 'Bricolage Grotesque', system-ui, -apple-system, sans-serif;
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
   }
   button, input, select, textarea { font: inherit; }
-  ::selection { background: hsl(var(--primary) / 0.16); }
+  ::selection { background: hsl(var(--foreground) / 0.12); }
   ::-webkit-scrollbar { width: 5px; height: 5px; }
   ::-webkit-scrollbar-track { background: transparent; }
   ::-webkit-scrollbar-thumb { @apply bg-border rounded-full; }
-  ::-webkit-scrollbar-thumb:hover { @apply bg-secondary rounded-full; }
+  ::-webkit-scrollbar-thumb:hover { @apply bg-foreground/20 rounded-full; }
 }
 
 @layer components {
@@ -75,8 +75,14 @@
   }
 
   .surface-grid {
-    background-image: linear-gradient(hsl(var(--border) / 0.45) 1px, transparent 1px), linear-gradient(90deg, hsl(var(--border) / 0.45) 1px, transparent 1px);
-    background-size: 28px 28px;
-    background-position: -1px -1px;
+    background-image: radial-gradient(circle, hsl(var(--border) / 0.45) 1px, transparent 1px);
+    background-size: 24px 24px;
+  }
+
+  .recharts-cartesian-axis-tick-value,
+  .recharts-legend-item-text {
+    fill: hsl(var(--muted-foreground)) !important;
+    color: hsl(var(--muted-foreground)) !important;
+    font-weight: 650;
   }
 }

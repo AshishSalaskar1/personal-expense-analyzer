@@ -13,16 +13,15 @@ export default function Sidebar() {
   return (
     <>
       <aside className="sticky top-0 hidden h-dvh w-72 shrink-0 flex-col border-r border-border/80 bg-card/95 shadow-sm lg:flex">
-        <div className="px-5 pb-5 pt-6">
-          <div className="flex items-center gap-3 rounded-lg border border-border/80 bg-background px-3 py-3">
-            <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg bg-primary text-primary-foreground shadow-sm">
-              <WalletCards size={21} />
+        <div className="px-5 pb-4 pt-6">
+          <div className="flex items-center gap-3">
+            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-foreground text-background">
+              <WalletCards size={17} />
             </div>
             <div className="min-w-0">
-              <h1 className="truncate text-base font-semibold leading-tight tracking-normal text-foreground">
-                Expense Buddy
+              <h1 className="truncate text-[1.15rem] font-extrabold lowercase leading-tight tracking-tight text-foreground">
+                expense buddy
               </h1>
-              <p className="mt-0.5 text-xs font-medium text-muted-foreground">Personal finance cockpit</p>
             </div>
           </div>
         </div>
@@ -37,8 +36,8 @@ export default function Sidebar() {
                 cn(
                   'flex min-h-12 items-center gap-3 rounded-lg px-3 text-sm font-semibold transition-colors duration-200 cursor-pointer',
                   isActive
-                    ? 'bg-primary text-primary-foreground shadow-sm'
-                    : 'text-muted-foreground hover:bg-muted hover:text-foreground'
+                    ? 'bg-foreground text-background font-bold'
+                    : 'text-muted-foreground hover:bg-muted hover:text-foreground font-semibold'
                 )
               }
             >
@@ -48,7 +47,7 @@ export default function Sidebar() {
           ))}
         </nav>
 
-        <div className="mx-5 mb-5 space-y-4 rounded-lg border border-border/80 bg-background p-4">
+        <div className="mx-5 mb-5 space-y-4 rounded-xl border border-border/60 bg-muted/40 p-4">
           <div>
             <p className="text-xs font-semibold uppercase tracking-[0.16em] text-muted-foreground">Status</p>
             <p className="mt-2 text-sm font-semibold text-foreground">Local-first ledger</p>
