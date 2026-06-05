@@ -15,6 +15,7 @@ import {
   ResponsiveContainer,
 } from 'recharts'
 import { ChevronRight } from 'lucide-react'
+import { Select } from '@/components/ui/select'
 import { DEFAULT_CHART_PALETTE, getChartPalette } from '@/lib/chartPalettes'
 
 const CHART_STYLE = {
@@ -33,6 +34,35 @@ const CHART_STYLE = {
 }
 
 const fmt = (v) => `₹${Number(v).toLocaleString('en-IN', { maximumFractionDigits: 0 })}`
+const isWithinMonthRange = (month, from, to) => {
+  if (!month) return false
+  if (from && month < from) return false
+  if (to && month > to) return false
+  return true
+}
+
+function MonthRangeControls({ months = [], from, to, onFromChange, onToChange }) {
+  const ascendingMonths = useMemo(() => [...months].sort((a, b) => a.localeCompare(b)), [months])
+  const firstMonth = ascendingMonths[0] || ''
+  const lastMonth = ascendingMonths[ascendingMonths.length - 1] || ''
+
+  return (
+    <div className="mb-4 flex flex-wrap items-center gap-2 rounded-xl border border-border bg-muted/35 px-2.5 py-2">
+      <span className="text-[10px] font-bold uppercase tracking-[0.18em] text-muted-foreground">Range</span>
+      <Select value={from || firstMonth} onChange={(event) => onFromChange(event.target.value)} className="min-h-9 w-32 border-0 bg-card px-2 py-1 text-xs font-bold shadow-none focus:ring-1">
+        {ascendingMonths.map((month) => (
+          <option key={month} value={month}>{month}</option>
+        ))}
+      </Select>
+      <span className="text-xs font-bold text-muted-foreground">to</span>
+      <Select value={to || lastMonth} onChange={(event) => onToChange(event.target.value)} className="min-h-9 w-32 border-0 bg-card px-2 py-1 text-xs font-bold shadow-none focus:ring-1">
+        {ascendingMonths.map((month) => (
+          <option key={month} value={month}>{month}</option>
+        ))}
+      </Select>
+    </div>
+  )
+}
 
 /**
  * ChartPanel — renders charts based on groupBy and transaction data.
@@ -45,12 +75,32 @@ const fmt = (v) => `₹${Number(v).toLocaleString('en-IN', { maximumFractionDigi
 export default function ChartPanel({ data = [], groupBy = 'tag', chartType = 'bar', paletteKey = DEFAULT_CHART_PALETTE }) {
   const palette = useMemo(() => getChartPalette(paletteKey), [paletteKey])
   const colors = palette.swatches
+  const [fromMonth, setFromMonth] = useState('')
+  const [toMonth, setToMonth] = useState('')
   const [drillKey, setDrillKey] = useState(null)
   useEffect(() => { setDrillKey(null) }, [groupBy])
 
+  const availableMonths = useMemo(
+    () => [...new Set(data.map((transaction) => transaction.month).filter(Boolean))].sort((a, b) => a.localeCompare(b)),
+    [data]
+  )
+  const firstMonth = availableMonths[0] || ''
+  const lastMonth = availableMonths[availableMonths.length - 1] || ''
+  const effectiveFrom = fromMonth || firstMonth
+  const effectiveTo = toMonth || lastMonth
+  const rangeFrom = effectiveFrom > effectiveTo ? effectiveTo : effectiveFrom
+  const rangeTo = effectiveFrom > effectiveTo ? effectiveFrom : effectiveTo
+  const rangedData = useMemo(
+    () => data.filter((transaction) => isWithinMonthRange(transaction.month, rangeFrom, rangeTo)),
+    [data, rangeFrom, rangeTo]
+  )
+  const rangeControls = availableMonths.length > 1 ? (
+    <MonthRangeControls months={availableMonths} from={fromMonth} to={toMonth} onFromChange={setFromMonth} onToChange={setToMonth} />
+  ) : null
+
   // Aggregate debits by groupBy × month for bar/line, or by groupBy for pie
   const { barData, pieData, keys } = useMemo(() => {
-    const debits = data.filter((t) => t.type === 'debit' && !t.ignored)
+    const debits = rangedData.filter((t) => t.type === 'debit' && !t.ignored)
 
     // Pie: sum by groupBy
     const pieMap = {}
@@ -87,12 +137,12 @@ export default function ChartPanel({ data = [], groupBy = 'tag', chartType = 'ba
     })
 
     return { barData, pieData, keys: allKeys }
-  }, [data, groupBy])
+  }, [rangedData, groupBy])
 
   // Drill-down: when drillKey is set (category → tags), re-aggregate by tag
   const drillData = useMemo(() => {
     if (!drillKey || groupBy !== 'category') return null
-    const debits = data.filter((t) => t.type === 'debit' && !t.ignored && (t.category || 'Unknown') === drillKey)
+    const debits = rangedData.filter((t) => t.type === 'debit' && !t.ignored && (t.category || 'Unknown') === drillKey)
 
     const allMonths = [...new Set(debits.map((t) => t.month))].sort()
     const allTagKeys = [...new Set(debits.map((t) => t.tag || 'Unknown'))].filter(Boolean).slice(0, 10)
@@ -125,7 +175,7 @@ export default function ChartPanel({ data = [], groupBy = 'tag', chartType = 'ba
       .slice(0, 12)
 
     return { barData: drillBarData, pieData: drillPieData, keys: allTagKeys }
-  }, [drillKey, data, groupBy])
+  }, [drillKey, rangedData, groupBy])
 
   const active = drillData || { barData, pieData, keys }
   const canDrill = groupBy === 'category' && !drillKey
@@ -153,9 +203,21 @@ export default function ChartPanel({ data = [], groupBy = 'tag', chartType = 'ba
     )
   }
 
+  if (!rangedData.length) {
+    return (
+      <div>
+        {rangeControls}
+        <div className="flex h-64 items-center justify-center rounded-lg border border-dashed border-border bg-muted/40 text-sm font-medium text-muted-foreground">
+          No data in selected range
+        </div>
+      </div>
+    )
+  }
+
   if (chartType === 'pie') {
     return (
       <div>
+        {rangeControls}
         {breadcrumb}
         <ResponsiveContainer width="100%" height={320}>
           <PieChart>
@@ -189,6 +251,7 @@ export default function ChartPanel({ data = [], groupBy = 'tag', chartType = 'ba
   if (chartType === 'line') {
     return (
       <div>
+        {rangeControls}
         {breadcrumb}
         <ResponsiveContainer width="100%" height={320}>
           <LineChart data={active.barData} margin={{ top: 8, right: 20, left: 0, bottom: 5 }}>
@@ -213,6 +276,7 @@ export default function ChartPanel({ data = [], groupBy = 'tag', chartType = 'ba
   if (chartType === 'grouped') {
     return (
       <div>
+        {rangeControls}
         {breadcrumb}
         <ResponsiveContainer width="100%" height={320}>
           <BarChart data={active.barData} margin={{ top: 8, right: 20, left: 0, bottom: 5 }} barCategoryGap="20%" barGap={3}>
@@ -247,6 +311,7 @@ export default function ChartPanel({ data = [], groupBy = 'tag', chartType = 'ba
   // Default: stacked bar chart
   return (
     <div>
+      {rangeControls}
       {breadcrumb}
       <ResponsiveContainer width="100%" height={320}>
         <BarChart data={active.barData} margin={{ top: 8, right: 20, left: 0, bottom: 5 }}>

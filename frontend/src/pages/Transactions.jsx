@@ -18,6 +18,7 @@ import { CHART_PALETTES, DEFAULT_CHART_PALETTE } from '@/lib/chartPalettes'
 const ALL_COLUMNS = ['date', 'type', 'amount', 'particulars', 'tag', 'category', 'comments', 'month']
 const DEFAULT_VISIBLE_COLUMNS = ALL_COLUMNS.filter((c) => c !== 'month')
 const SAVED_DASHBOARDS_KEY = 'expense-buddy-saved-dashboards'
+const DASHBOARD_SESSION_STATE_KEY = 'expense-buddy-dashboard-session-state'
 const GROUP_BY_OPTIONS = [
   { value: 'tag', label: 'Tag' },
   { value: 'category', label: 'Category' },
@@ -38,6 +39,22 @@ function loadSavedDashboards() {
 
 function persistSavedDashboards(dashboards) {
   window.localStorage.setItem(SAVED_DASHBOARDS_KEY, JSON.stringify(dashboards))
+}
+
+function loadDashboardSessionState() {
+  if (typeof window === 'undefined') return {}
+
+  try {
+    const parsed = JSON.parse(window.sessionStorage.getItem(DASHBOARD_SESSION_STATE_KEY) || '{}')
+    return parsed && typeof parsed === 'object' ? parsed : {}
+  } catch {
+    return {}
+  }
+}
+
+function persistDashboardSessionState(state) {
+  if (typeof window === 'undefined') return
+  window.sessionStorage.setItem(DASHBOARD_SESSION_STATE_KEY, JSON.stringify(state))
 }
 
 function createDashboardId() {
@@ -174,6 +191,7 @@ function PalettePicker({ value, onChange }) {
 }
 
 export default function Transactions() {
+  const initialDashboardState = useMemo(() => loadDashboardSessionState(), [])
   const [transactions, setTransactions] = useState([])
   const [months, setMonths] = useState([])
   const [tagMappings, setTagMappings] = useState([])
@@ -182,25 +200,25 @@ export default function Transactions() {
   const [saveDialogOpen, setSaveDialogOpen] = useState(false)
   const [dashboardName, setDashboardName] = useState('')
   const [loading, setLoading] = useState(true)
-  const [showMoreFilters, setShowMoreFilters] = useState(false)
+  const [showMoreFilters, setShowMoreFilters] = useState(Boolean(initialDashboardState.showMoreFilters))
 
   // Filters
-  const [filterMonth, setFilterMonth] = useState('')
-  const [filterType, setFilterType] = useState('')
-  const [filterTags, setFilterTags] = useState([])
-  const [filterCategories, setFilterCategories] = useState([])
-  const [dateFrom, setDateFrom] = useState('')
-  const [dateTo, setDateTo] = useState('')
-  const [minAmount, setMinAmount] = useState('')
-  const [maxAmount, setMaxAmount] = useState('')
+  const [filterMonth, setFilterMonth] = useState(initialDashboardState.filterMonth || '')
+  const [filterType, setFilterType] = useState(initialDashboardState.filterType || '')
+  const [filterTags, setFilterTags] = useState(Array.isArray(initialDashboardState.filterTags) ? initialDashboardState.filterTags : [])
+  const [filterCategories, setFilterCategories] = useState(Array.isArray(initialDashboardState.filterCategories) ? initialDashboardState.filterCategories : [])
+  const [dateFrom, setDateFrom] = useState(initialDashboardState.dateFrom || '')
+  const [dateTo, setDateTo] = useState(initialDashboardState.dateTo || '')
+  const [minAmount, setMinAmount] = useState(initialDashboardState.minAmount || '')
+  const [maxAmount, setMaxAmount] = useState(initialDashboardState.maxAmount || '')
 
   // Display options
-  const [dashboardMonth, setDashboardMonth] = useState('')
-  const [groupBy, setGroupBy] = useState('tag')
-  const [chartType, setChartType] = useState('bar')
-  const [chartPalette, setChartPalette] = useState(DEFAULT_CHART_PALETTE)
-  const [visibleCols, setVisibleCols] = useState(DEFAULT_VISIBLE_COLUMNS)
-  const [showColPicker, setShowColPicker] = useState(false)
+  const [dashboardMonth, setDashboardMonth] = useState(initialDashboardState.dashboardMonth || '')
+  const [groupBy, setGroupBy] = useState(GROUP_BY_OPTIONS.some((option) => option.value === initialDashboardState.groupBy) ? initialDashboardState.groupBy : 'tag')
+  const [chartType, setChartType] = useState(CHART_TYPES.some((option) => option.value === initialDashboardState.chartType) ? initialDashboardState.chartType : 'bar')
+  const [chartPalette, setChartPalette] = useState(CHART_PALETTES[initialDashboardState.chartPalette] ? initialDashboardState.chartPalette : DEFAULT_CHART_PALETTE)
+  const [visibleCols, setVisibleCols] = useState(Array.isArray(initialDashboardState.visibleCols) && initialDashboardState.visibleCols.length ? initialDashboardState.visibleCols.filter((col) => ALL_COLUMNS.includes(col)) : DEFAULT_VISIBLE_COLUMNS)
+  const [showColPicker, setShowColPicker] = useState(Boolean(initialDashboardState.showColPicker))
 
   const currentDashboardState = useMemo(() => ({
     filterMonth,
@@ -221,6 +239,10 @@ export default function Transactions() {
   }), [filterMonth, filterType, filterTags, filterCategories, dateFrom, dateTo, minAmount, maxAmount, dashboardMonth, groupBy, chartType, chartPalette, visibleCols, showMoreFilters, showColPicker])
 
   const selectedDashboard = savedDashboards.find((dashboard) => dashboard.id === selectedDashboardId)
+
+  useEffect(() => {
+    persistDashboardSessionState(currentDashboardState)
+  }, [currentDashboardState])
 
   useEffect(() => {
     getMonths().then((r) => setMonths(r.data))
