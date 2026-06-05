@@ -46,6 +46,38 @@ const DIM_OPTIONS = [
 const DIM_LABEL = { tag: 'Tag', category: 'Category' }
 const DASHBOARD_SECTIONS_KEY = 'dashboardSections:v2'
 
+const isWithinMonthRange = (month, from, to) => {
+  if (!month) return false
+  if (from && month < from) return false
+  if (to && month > to) return false
+  return true
+}
+
+function MonthRangeControls({ months = [], from, to, onFromChange, onToChange, label = 'Range' }) {
+  const ascendingMonths = useMemo(() => [...months].sort((a, b) => a.localeCompare(b)), [months])
+  const firstMonth = ascendingMonths[0] || ''
+  const lastMonth = ascendingMonths[ascendingMonths.length - 1] || ''
+  const effectiveFrom = from || firstMonth
+  const effectiveTo = to || lastMonth
+
+  return (
+    <div className="flex flex-wrap items-center gap-2 rounded-xl border border-border bg-muted/35 px-2.5 py-2">
+      <span className="text-[10px] font-bold uppercase tracking-[0.18em] text-muted-foreground">{label}</span>
+      <Select value={effectiveFrom} onChange={(event) => onFromChange(event.target.value)} className="min-h-9 w-32 border-0 bg-card px-2 py-1 text-xs font-bold shadow-none focus:ring-1">
+        {ascendingMonths.map((month) => (
+          <option key={month} value={month}>{month}</option>
+        ))}
+      </Select>
+      <span className="text-xs font-bold text-muted-foreground">to</span>
+      <Select value={effectiveTo} onChange={(event) => onToChange(event.target.value)} className="min-h-9 w-32 border-0 bg-card px-2 py-1 text-xs font-bold shadow-none focus:ring-1">
+        {ascendingMonths.map((month) => (
+          <option key={month} value={month}>{month}</option>
+        ))}
+      </Select>
+    </div>
+  )
+}
+
 // CRED-style stat card — big bold number, accent top stripe, no icon
 function StatCard({ label, value, detail, tone = 'primary', colors }) {
   const accentColor = {
@@ -100,11 +132,27 @@ export default function DashboardCharts({ transactions = [], selectedMonth = '',
     () => [...new Set(cleanTransactions.map((transaction) => transaction.month).filter(Boolean))].sort((a, b) => b.localeCompare(a)),
     [cleanTransactions]
   )
+  const [trendFromMonth, setTrendFromMonth] = useState('')
+  const [trendToMonth, setTrendToMonth] = useState('')
+  const [categoryFromMonth, setCategoryFromMonth] = useState('')
+  const [categoryToMonth, setCategoryToMonth] = useState('')
+
+  const ascendingMonths = useMemo(() => [...availableMonths].sort((a, b) => a.localeCompare(b)), [availableMonths])
+  const firstMonth = ascendingMonths[0] || ''
+  const lastMonth = ascendingMonths[ascendingMonths.length - 1] || ''
   const activeMonth = availableMonths.includes(selectedMonth) ? selectedMonth : availableMonths[0] || ''
+  const effectiveTrendFrom = trendFromMonth || firstMonth
+  const effectiveTrendTo = trendToMonth || lastMonth
+  const effectiveCategoryFrom = categoryFromMonth || activeMonth || firstMonth
+  const effectiveCategoryTo = categoryToMonth || activeMonth || lastMonth
+  const trendRangeFrom = effectiveTrendFrom > effectiveTrendTo ? effectiveTrendTo : effectiveTrendFrom
+  const trendRangeTo = effectiveTrendFrom > effectiveTrendTo ? effectiveTrendFrom : effectiveTrendTo
+  const categoryRangeFrom = effectiveCategoryFrom > effectiveCategoryTo ? effectiveCategoryTo : effectiveCategoryFrom
+  const categoryRangeTo = effectiveCategoryFrom > effectiveCategoryTo ? effectiveCategoryFrom : effectiveCategoryTo
 
   const monthlyTotals = useMemo(() => {
     const map = {}
-    for (const transaction of cleanTransactions) {
+    for (const transaction of cleanTransactions.filter((transaction) => isWithinMonthRange(transaction.month, trendRangeFrom, trendRangeTo))) {
       if (!map[transaction.month]) map[transaction.month] = { month: transaction.month, debit: 0, credit: 0, net: 0 }
       if (transaction.type === 'debit') map[transaction.month].debit += transaction.amount
       else map[transaction.month].credit += transaction.amount
@@ -113,7 +161,7 @@ export default function DashboardCharts({ transactions = [], selectedMonth = '',
     return Object.values(map)
       .sort((a, b) => a.month.localeCompare(b.month))
       .map((row) => ({ ...row, debit: Math.round(row.debit), credit: Math.round(row.credit), net: Math.round(row.net) }))
-  }, [cleanTransactions])
+  }, [cleanTransactions, trendRangeFrom, trendRangeTo])
 
   const monthSummary = useMemo(() => {
     const monthTransactions = cleanTransactions.filter((transaction) => transaction.month === activeMonth)
@@ -138,9 +186,14 @@ export default function DashboardCharts({ transactions = [], selectedMonth = '',
       .slice(0, 8)
   }, [monthSummary, tagChartBy])
 
+  const categoryRangeTransactions = useMemo(
+    () => cleanTransactions.filter((transaction) => isWithinMonthRange(transaction.month, categoryRangeFrom, categoryRangeTo)),
+    [cleanTransactions, categoryRangeFrom, categoryRangeTo]
+  )
+
   const categoryBreakdown = useMemo(() => {
     const map = {}
-    for (const transaction of monthSummary.txs.filter((entry) => entry.type === 'debit')) {
+    for (const transaction of categoryRangeTransactions.filter((entry) => entry.type === 'debit')) {
       const key = transaction[catChartBy] || 'Uncategorized'
       map[key] = (map[key] || 0) + transaction.amount
     }
@@ -148,7 +201,7 @@ export default function DashboardCharts({ transactions = [], selectedMonth = '',
       .map(([name, value]) => ({ name, value: Math.round(value) }))
       .sort((a, b) => b.value - a.value)
       .slice(0, 7)
-  }, [monthSummary, catChartBy])
+  }, [categoryRangeTransactions, catChartBy])
 
   const daySpend = useMemo(() => {
     const map = {}
@@ -176,11 +229,11 @@ export default function DashboardCharts({ transactions = [], selectedMonth = '',
   })
 
   const [drillCategory, setDrillCategory] = useState(null)
-  useEffect(() => { setDrillCategory(null) }, [activeMonth, catChartBy])
+  useEffect(() => { setDrillCategory(null) }, [categoryRangeFrom, categoryRangeTo, catChartBy])
 
   const categoryTagMap = useMemo(() => {
     const map = {}
-    for (const t of monthSummary.txs.filter((e) => e.type === 'debit')) {
+    for (const t of categoryRangeTransactions.filter((e) => e.type === 'debit')) {
       const cat = t.category || 'Uncategorized'
       const tag = t.tag || 'Unknown'
       if (!map[cat]) map[cat] = {}
@@ -194,12 +247,12 @@ export default function DashboardCharts({ transactions = [], selectedMonth = '',
         .slice(0, 4)
     }
     return result
-  }, [monthSummary])
+  }, [categoryRangeTransactions])
 
   const drillBreakdown = useMemo(() => {
     if (!drillCategory) return []
     const map = {}
-    for (const t of monthSummary.txs.filter((e) => e.type === 'debit' && (e.category || 'Uncategorized') === drillCategory)) {
+    for (const t of categoryRangeTransactions.filter((e) => e.type === 'debit' && (e.category || 'Uncategorized') === drillCategory)) {
       const key = t.tag || 'Unknown'
       map[key] = (map[key] || 0) + t.amount
     }
@@ -207,7 +260,7 @@ export default function DashboardCharts({ transactions = [], selectedMonth = '',
       .map(([name, value]) => ({ name, value: Math.round(value) }))
       .sort((a, b) => b.value - a.value)
       .slice(0, 10)
-  }, [drillCategory, monthSummary])
+  }, [drillCategory, categoryRangeTransactions])
 
   const categoryTooltip = ({ active, payload }) => {
     if (!active || !payload?.length) return null
@@ -273,7 +326,17 @@ export default function DashboardCharts({ transactions = [], selectedMonth = '',
         <div className="grid grid-cols-1 gap-5 xl:grid-cols-3">
           <Card className="xl:col-span-2">
             <CardHeader>
-              <CardTitle className="flex items-center gap-2"><Activity size={18} className="text-primary" /> Cash flow trend</CardTitle>
+              <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+                <CardTitle className="flex items-center gap-2"><Activity size={18} className="text-primary" /> Cash flow trend</CardTitle>
+                <MonthRangeControls
+                  months={availableMonths}
+                  from={trendFromMonth}
+                  to={trendToMonth}
+                  onFromChange={setTrendFromMonth}
+                  onToChange={setTrendToMonth}
+                  label="Range"
+                />
+              </div>
             </CardHeader>
             <CardContent>
               <ResponsiveContainer width="100%" height={320}>
@@ -293,26 +356,36 @@ export default function DashboardCharts({ transactions = [], selectedMonth = '',
 
           <Card>
             <CardHeader>
-              <div className="flex items-center justify-between gap-2">
-                <CardTitle className="flex items-center gap-2">
-                  <PieIcon size={18} className="text-primary" />
-                  {drillCategory ? (
-                    <span className="flex items-center gap-1">
-                      <button type="button" onClick={() => setDrillCategory(null)} className="text-primary hover:underline">
-                        All {DIM_LABEL[catChartBy]}s
-                      </button>
-                      <ChevronRight size={13} className="text-muted-foreground" />
-                      <span>{drillCategory}</span>
-                    </span>
-                  ) : (
-                    `${DIM_LABEL[catChartBy]} mix`
+              <div className="flex flex-col gap-3">
+                <div className="flex items-center justify-between gap-2">
+                  <CardTitle className="flex items-center gap-2">
+                    <PieIcon size={18} className="text-primary" />
+                    {drillCategory ? (
+                      <span className="flex items-center gap-1">
+                        <button type="button" onClick={() => setDrillCategory(null)} className="text-primary hover:underline">
+                          All {DIM_LABEL[catChartBy]}s
+                        </button>
+                        <ChevronRight size={13} className="text-muted-foreground" />
+                        <span>{drillCategory}</span>
+                      </span>
+                    ) : (
+                      `${DIM_LABEL[catChartBy]} mix`
+                    )}
+                  </CardTitle>
+                  {!drillCategory && (
+                    <select value={catChartBy} onChange={(e) => setCatChartBy(e.target.value)} className="cursor-pointer rounded border border-border bg-card px-1.5 py-0.5 text-xs text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring">
+                      {DIM_OPTIONS.map((opt) => <option key={opt.value} value={opt.value}>{opt.label}</option>)}
+                    </select>
                   )}
-                </CardTitle>
-                {!drillCategory && (
-                  <select value={catChartBy} onChange={(e) => setCatChartBy(e.target.value)} className="cursor-pointer rounded border border-border bg-card px-1.5 py-0.5 text-xs text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring">
-                    {DIM_OPTIONS.map((opt) => <option key={opt.value} value={opt.value}>{opt.label}</option>)}
-                  </select>
-                )}
+                </div>
+                <MonthRangeControls
+                  months={availableMonths}
+                  from={categoryFromMonth || activeMonth}
+                  to={categoryToMonth || activeMonth}
+                  onFromChange={setCategoryFromMonth}
+                  onToChange={setCategoryToMonth}
+                  label="Range"
+                />
               </div>
             </CardHeader>
             <CardContent>
