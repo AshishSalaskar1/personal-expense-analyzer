@@ -6,9 +6,10 @@ import { Badge } from '@/components/ui/badge'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { getTagMappings, updateTagMapping, setTagIgnored } from '@/api/client'
-import { Filter, EyeOff } from 'lucide-react'
+import { ChevronDown, Filter, EyeOff } from 'lucide-react'
+import { compactLongIdentifiers } from '@/lib/compactIdentifiers'
 
-function CategoryCell({ mapping, onSave, existingCategories = [] }) {
+function CategoryCell({ mapping, onSave, existingCategories = [], prominent = false }) {
   const [editing, setEditing] = useState(false)
   const [val, setVal] = useState(mapping.category ?? '')
   const listId = `cat-list-${mapping.particulars.replace(/\W/g, '_')}`
@@ -41,7 +42,7 @@ function CategoryCell({ mapping, onSave, existingCategories = [] }) {
           onChange={(e) => setVal(e.target.value)}
           onBlur={commit}
           onKeyDown={(e) => { if (e.key === 'Enter') commit() }}
-          className="min-h-10 w-44 rounded-md border border-input bg-card px-3 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          className={`${prominent ? 'w-full min-w-56' : 'w-44'} min-h-10 rounded-lg border border-input bg-card px-3 text-sm font-semibold focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring`}
           placeholder="e.g. Groceries"
         />
       </>
@@ -49,17 +50,19 @@ function CategoryCell({ mapping, onSave, existingCategories = [] }) {
   }
 
   return (
-    <span
-      className="cursor-pointer text-sm hover:underline"
+    <button
+      type="button"
+      className={`${prominent ? 'min-h-11 w-full justify-between rounded-xl px-3 text-sm' : 'rounded-lg px-2 py-1 text-xs'} inline-flex items-center gap-2 border border-border bg-card font-bold text-foreground shadow-sm transition-colors hover:border-primary/50 hover:bg-muted cursor-pointer`}
       onClick={() => setEditing(true)}
       title="Click to edit category"
     >
       {mapping.category ? (
-        <Badge variant="secondary">{mapping.category}</Badge>
+        <span className="rounded-full bg-primary/10 px-2 py-1 text-primary">{mapping.category}</span>
       ) : (
-        <span className="italic text-muted-foreground text-xs">set category…</span>
+        <span className="text-muted-foreground">set category…</span>
       )}
-    </span>
+      {prominent && <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Edit</span>}
+    </button>
   )
 }
 
@@ -68,7 +71,9 @@ export default function TagManager() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
   const [uncategorizedOnly, setUncategorizedOnly] = useState(false)
+  const [excludedOnly, setExcludedOnly] = useState(false)
   const [search, setSearch] = useState('')
+  const [expandedTags, setExpandedTags] = useState(() => new Set())
 
   const load = () => {
     setLoading(true)
@@ -117,6 +122,15 @@ export default function TagManager() {
     }
   }
 
+  const toggleExpanded = (tag) => {
+    setExpandedTags((prev) => {
+      const next = new Set(prev)
+      if (next.has(tag)) next.delete(tag)
+      else next.add(tag)
+      return next
+    })
+  }
+
   // Group by tag
   const existingCategories = useMemo(
     () => [...new Set(mappings.map((m) => m.category).filter(Boolean))].sort(),
@@ -126,6 +140,7 @@ export default function TagManager() {
   const grouped = useMemo(() => {
     let list = mappings
     if (uncategorizedOnly) list = list.filter((m) => !m.category)
+    if (excludedOnly) list = list.filter((m) => m.ignored)
     if (search) {
       const q = search.toLowerCase()
       list = list.filter(
@@ -142,10 +157,14 @@ export default function TagManager() {
       groups[m.tag].push(m)
     }
     return Object.entries(groups).sort((a, b) => b[1].length - a[1].length)
-  }, [mappings, uncategorizedOnly, search])
+  }, [mappings, uncategorizedOnly, excludedOnly, search])
 
   const uncategorizedCount = useMemo(
     () => mappings.filter((m) => !m.category).length,
+    [mappings]
+  )
+  const excludedCount = useMemo(
+    () => new Set(mappings.filter((m) => m.ignored).map((m) => m.tag)).size,
     [mappings]
   )
 
@@ -154,11 +173,20 @@ export default function TagManager() {
       eyebrow="Taxonomy"
       title="Tag Manager"
       description="Normalize merchant tags into reporting categories and exclude noisy tags from dashboards."
-      actions={uncategorizedCount > 0 && (
-          <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium bg-red-500/15 text-red-400 border border-red-500/20 shrink-0">
+      actions={(uncategorizedCount > 0 || excludedCount > 0) && (
+        <div className="flex flex-wrap items-center gap-2">
+          {excludedCount > 0 && (
+            <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold bg-muted text-muted-foreground border border-border shrink-0">
+              <EyeOff size={12} /> {excludedCount} excluded
+            </span>
+          )}
+          {uncategorizedCount > 0 && (
+          <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold bg-red-50 text-red-700 border border-red-200 shrink-0">
             {uncategorizedCount} uncategorized
           </span>
-        )}
+          )}
+        </div>
+      )}
     >
 
       {error && (
@@ -169,6 +197,9 @@ export default function TagManager() {
 
       {/* Controls */}
       <Card>
+        <CardHeader className="border-b border-border/70 pb-3">
+          <CardTitle className="text-base">Find mappings</CardTitle>
+        </CardHeader>
         <CardContent className="flex flex-col gap-4 p-5 lg:flex-row lg:items-center lg:justify-between">
         <Input
           placeholder="Search tag, particulars, or category…"
@@ -176,14 +207,24 @@ export default function TagManager() {
           onChange={(e) => setSearch(e.target.value)}
           className="max-w-xl"
         />
-        <label className="flex items-center gap-2 text-sm cursor-pointer text-muted-foreground hover:text-foreground transition-colors select-none">
-          <Checkbox
-            checked={uncategorizedOnly}
-            onCheckedChange={setUncategorizedOnly}
-          />
-          <Filter size={13} />
-          Show uncategorized only
-        </label>
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:gap-5">
+          <label className="flex items-center gap-2 text-sm cursor-pointer text-muted-foreground hover:text-foreground transition-colors select-none">
+            <Checkbox
+              checked={uncategorizedOnly}
+              onCheckedChange={setUncategorizedOnly}
+            />
+            <Filter size={13} />
+            Show uncategorized only
+          </label>
+          <label className="flex items-center gap-2 text-sm cursor-pointer text-muted-foreground hover:text-foreground transition-colors select-none">
+            <Checkbox
+              checked={excludedOnly}
+              onCheckedChange={setExcludedOnly}
+            />
+            <EyeOff size={13} />
+            Show excluded only
+          </label>
+        </div>
         </CardContent>
       </Card>
 
@@ -202,40 +243,61 @@ export default function TagManager() {
         </div>
       ) : (
         <div className="space-y-3">
-          {grouped.map(([tag, items]) => (
+          {grouped.map(([tag, items]) => {
+            const expanded = expandedTags.has(tag)
+            return (
             <Card key={tag} className={`transition-opacity ${items[0].ignored ? 'opacity-55' : ''}`}>
-              <CardHeader className="pb-2 pt-4">
-                <CardTitle className="text-sm flex items-center gap-2 flex-wrap">
-                  <Badge className={`font-medium ${items[0].ignored ? 'opacity-40' : ''}`}>{tag}</Badge>
-                  <span className="text-muted-foreground font-normal text-xs">
-                    {items.length} particular{items.length !== 1 ? 's' : ''}
-                  </span>
-                  {items[0].ignored && (
-                    <span className="inline-flex items-center gap-1 text-[10px] font-medium px-1.5 py-0.5 rounded-full bg-muted text-muted-foreground border border-border/50">
-                      <EyeOff size={9} /> excluded
-                    </span>
-                  )}
-                  <div className="ml-auto flex flex-wrap items-center gap-2">
-                    <button
-                      onClick={() => handleToggleIgnored(tag, items[0].ignored)}
-                      title={items[0].ignored ? 'Include in dashboards' : 'Exclude from dashboards'}
-                      className={`inline-flex items-center gap-1.5 text-xs px-2 py-1 rounded-md border transition-colors cursor-pointer ${
-                        items[0].ignored
-                          ? 'border-primary/30 text-primary bg-primary/10 hover:bg-primary/20'
-                          : 'border-border text-muted-foreground hover:text-foreground hover:border-primary/40 hover:bg-primary/5'
-                      }`}
-                    >
-                      <EyeOff size={11} />
-                      {items[0].ignored ? 'Excluded' : 'Exclude'}
-                    </button>
+              <CardHeader className="pb-4 pt-4">
+                <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(17rem,22rem)_auto_auto] lg:items-center">
+                  <div className="min-w-0">
+                    <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-muted-foreground">Tag</p>
+                    <div className="mt-1 flex flex-wrap items-center gap-2">
+                      <span className={`max-w-full truncate rounded-xl bg-foreground px-3 py-2 text-base font-extrabold tracking-tight text-background ${items[0].ignored ? 'opacity-50' : ''}`}>
+                        {tag}
+                      </span>
+                      <span className="text-xs font-bold text-muted-foreground">
+                        {items.length} particular{items.length !== 1 ? 's' : ''}
+                      </span>
+                      {items[0].ignored && (
+                        <span className="inline-flex items-center gap-1 rounded-full border border-border bg-muted px-2 py-1 text-[10px] font-bold text-muted-foreground">
+                          <EyeOff size={10} /> excluded
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                  <div>
+                    <p className="mb-1.5 text-[10px] font-bold uppercase tracking-[0.2em] text-muted-foreground">Category for this tag</p>
                     <CategoryCell
                       mapping={{ ...items[0], category: items[0].category ?? null }}
                       onSave={(_, category) => handleSaveAllInTag(tag, category)}
                       existingCategories={existingCategories}
+                      prominent
                     />
                   </div>
-                </CardTitle>
+                  <button
+                    onClick={() => handleToggleIgnored(tag, items[0].ignored)}
+                    title={items[0].ignored ? 'Include in dashboards' : 'Exclude from dashboards'}
+                    className={`inline-flex min-h-10 items-center justify-center gap-1.5 rounded-lg border px-3 text-xs font-bold transition-colors cursor-pointer ${
+                      items[0].ignored
+                        ? 'border-primary/30 text-primary bg-primary/10 hover:bg-primary/20'
+                        : 'border-border text-muted-foreground hover:text-foreground hover:border-primary/40 hover:bg-primary/5'
+                    }`}
+                  >
+                    <EyeOff size={13} />
+                    {items[0].ignored ? 'Excluded' : 'Exclude'}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => toggleExpanded(tag)}
+                    aria-expanded={expanded}
+                    className="inline-flex min-h-10 items-center justify-center gap-1.5 rounded-lg border border-border bg-card px-3 text-xs font-bold text-foreground transition-colors hover:border-primary/40 hover:bg-muted cursor-pointer"
+                  >
+                    <ChevronDown size={14} className={`transition-transform duration-200 ${expanded ? 'rotate-180' : ''}`} />
+                    {expanded ? 'Hide items' : 'Show items'}
+                  </button>
+                </div>
               </CardHeader>
+              {expanded && (
               <CardContent className="pt-0">
                 <div className="overflow-auto rounded-lg border border-border/80">
                   <table className="w-full text-xs">
@@ -258,8 +320,8 @@ export default function TagManager() {
                     <tbody>
                       {items.map((m) => (
                         <tr key={m.particulars} className="border-t border-border/40 hover:bg-muted/20 transition-colors">
-                          <td className="px-3 py-2 text-muted-foreground truncate max-w-xs">
-                            {m.particulars}
+                          <td className="max-w-xs truncate px-3 py-2 font-medium text-foreground" title={m.particulars}>
+                            {compactLongIdentifiers(m.particulars)}
                           </td>
                           <td className="px-3 py-2 text-right tabular-nums text-foreground/80">
                             {m.total_amount != null
@@ -278,8 +340,10 @@ export default function TagManager() {
                   </table>
                 </div>
               </CardContent>
+              )}
             </Card>
-          ))}
+            )
+          })}
         </div>
       )}
     </PageShell>

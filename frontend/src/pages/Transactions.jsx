@@ -13,6 +13,7 @@ import DashboardCharts from '@/components/DashboardCharts'
 import ExportImport from '@/components/ExportImport'
 import { getTransactions, getMonths, getTagMappings } from '@/api/client'
 import { CopyPlus, Save, SlidersHorizontal, Trash2, X, ChevronDown, ChevronUp } from 'lucide-react'
+import { CHART_PALETTES, DEFAULT_CHART_PALETTE } from '@/lib/chartPalettes'
 
 const ALL_COLUMNS = ['date', 'type', 'amount', 'particulars', 'tag', 'category', 'comments', 'month']
 const DEFAULT_VISIBLE_COLUMNS = ALL_COLUMNS.filter((c) => c !== 'month')
@@ -51,11 +52,12 @@ const CHART_TYPES = [
   { value: 'line', label: 'Line' },
   { value: 'pie', label: 'Pie' },
 ]
+const CHART_PALETTE_OPTIONS = Object.entries(CHART_PALETTES).map(([value, palette]) => ({ value, ...palette }))
 
 function FilterSelect({ label, value, onChange, children, className = '' }) {
   return (
     <div className="space-y-1.5">
-      <Label className="text-[11px] font-medium text-muted-foreground uppercase tracking-wider">{label}</Label>
+      <Label className="text-[11px] font-bold text-muted-foreground uppercase tracking-wider">{label}</Label>
       <Select value={value} onChange={onChange} className={`w-full text-sm ${className}`}>
         {children}
       </Select>
@@ -86,7 +88,7 @@ function MultiFilterSelect({ label, values, options, onChange, placeholder, clas
 
   return (
     <div ref={containerRef} className="relative space-y-1.5">
-      <Label className="text-[11px] font-medium text-muted-foreground uppercase tracking-wider">{label}</Label>
+      <Label className="text-[11px] font-bold text-muted-foreground uppercase tracking-wider">{label}</Label>
       <button
         type="button"
         onClick={() => setOpen((value) => !value)}
@@ -129,12 +131,45 @@ function MultiFilterSelect({ label, values, options, onChange, placeholder, clas
 
 function ActiveChip({ label, onRemove }) {
   return (
-    <span className="inline-flex min-h-7 items-center gap-1 rounded-full border border-primary/25 bg-primary/10 px-2.5 py-1 text-xs font-semibold text-primary">
+    <span className="inline-flex min-h-7 items-center gap-1 rounded-full border border-primary/30 bg-primary/10 px-2.5 py-1 text-xs font-bold text-primary shadow-sm">
       {label}
       <button onClick={onRemove} className="hover:text-foreground transition-colors cursor-pointer" aria-label={`Remove ${label} filter`}>
         <X size={10} />
       </button>
     </span>
+  )
+}
+
+function PalettePicker({ value, onChange }) {
+  return (
+    <div className="space-y-1.5 sm:col-span-2">
+      <Label className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground">Chart colors</Label>
+      <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 xl:grid-cols-4">
+        {CHART_PALETTE_OPTIONS.map((palette) => {
+          const selected = value === palette.value
+          return (
+            <button
+              key={palette.value}
+              type="button"
+              onClick={() => onChange(palette.value)}
+              className={`flex min-h-11 items-center justify-between gap-3 rounded-xl border px-3 py-2 text-left transition-colors cursor-pointer ${
+                selected
+                  ? 'border-primary bg-primary text-primary-foreground shadow-sm'
+                  : 'border-border bg-card text-foreground hover:border-primary/50 hover:bg-muted/60'
+              }`}
+              aria-pressed={selected}
+            >
+              <span className="min-w-0 truncate text-xs font-bold">{palette.name}</span>
+              <span className="flex shrink-0 -space-x-1" aria-hidden="true">
+                {palette.swatches.slice(0, 4).map((color) => (
+                  <span key={color} className="h-4 w-4 rounded-full border border-white/80" style={{ backgroundColor: color }} />
+                ))}
+              </span>
+            </button>
+          )
+        })}
+      </div>
+    </div>
   )
 }
 
@@ -163,6 +198,7 @@ export default function Transactions() {
   const [dashboardMonth, setDashboardMonth] = useState('')
   const [groupBy, setGroupBy] = useState('tag')
   const [chartType, setChartType] = useState('bar')
+  const [chartPalette, setChartPalette] = useState(DEFAULT_CHART_PALETTE)
   const [visibleCols, setVisibleCols] = useState(DEFAULT_VISIBLE_COLUMNS)
   const [showColPicker, setShowColPicker] = useState(false)
 
@@ -178,10 +214,11 @@ export default function Transactions() {
     dashboardMonth,
     groupBy,
     chartType,
+    chartPalette,
     visibleCols,
     showMoreFilters,
     showColPicker,
-  }), [filterMonth, filterType, filterTags, filterCategories, dateFrom, dateTo, minAmount, maxAmount, dashboardMonth, groupBy, chartType, visibleCols, showMoreFilters, showColPicker])
+  }), [filterMonth, filterType, filterTags, filterCategories, dateFrom, dateTo, minAmount, maxAmount, dashboardMonth, groupBy, chartType, chartPalette, visibleCols, showMoreFilters, showColPicker])
 
   const selectedDashboard = savedDashboards.find((dashboard) => dashboard.id === selectedDashboardId)
 
@@ -244,6 +281,7 @@ export default function Transactions() {
     setDashboardMonth(state.dashboardMonth || '')
     setGroupBy(GROUP_BY_OPTIONS.some((option) => option.value === state.groupBy) ? state.groupBy : 'tag')
     setChartType(CHART_TYPES.some((option) => option.value === state.chartType) ? state.chartType : 'bar')
+    setChartPalette(CHART_PALETTES[state.chartPalette] ? state.chartPalette : DEFAULT_CHART_PALETTE)
     setVisibleCols(Array.isArray(state.visibleCols) && state.visibleCols.length ? state.visibleCols.filter((col) => ALL_COLUMNS.includes(col)) : DEFAULT_VISIBLE_COLUMNS)
     setShowMoreFilters(Boolean(state.showMoreFilters))
     setShowColPicker(Boolean(state.showColPicker))
@@ -321,7 +359,7 @@ export default function Transactions() {
         <CardContent className="space-y-4 p-5">
           <div className="grid grid-cols-1 gap-4 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-end">
             <div className="space-y-1.5">
-              <Label className="text-[11px] font-medium text-muted-foreground uppercase tracking-wider">Saved dashboard</Label>
+              <Label className="text-[11px] font-bold text-muted-foreground uppercase tracking-wider">Saved dashboard</Label>
               <Select value={selectedDashboardId} onChange={(event) => loadDashboard(event.target.value)}>
                 <option value="">Select a saved dashboard</option>
                 {savedDashboards.map((dashboard) => (
@@ -358,7 +396,7 @@ export default function Transactions() {
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-1.5 py-4">
-            <Label htmlFor="dashboard-name" className="text-[11px] font-medium text-muted-foreground uppercase tracking-wider">Dashboard name</Label>
+                <Label htmlFor="dashboard-name" className="text-[11px] font-bold text-muted-foreground uppercase tracking-wider">Dashboard name</Label>
             <Input
               id="dashboard-name"
               value={dashboardName}
@@ -380,7 +418,26 @@ export default function Transactions() {
       </Dialog>
 
       {/* Filter panel */}
-      <Card>
+      <Card className="overflow-visible">
+        <CardHeader className="border-b border-border/70 pb-3">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <CardTitle className="text-base">Filter workspace</CardTitle>
+              <p className="mt-1 text-xs font-medium text-muted-foreground">One place for saved views, transaction filters, and active filter chips.</p>
+            </div>
+            <div className="flex flex-wrap gap-2">
+              <Button variant="outline" size="sm" onClick={() => setShowMoreFilters((v) => !v)}>
+                {showMoreFilters ? <ChevronUp size={13} className="mr-1" /> : <ChevronDown size={13} className="mr-1" />}
+                More filters
+              </Button>
+              {activeFilters.length > 0 && (
+                <Button variant="ghost" size="sm" onClick={clearAll}>
+                  <X size={13} className="mr-1" /> Clear all
+                </Button>
+              )}
+            </div>
+          </div>
+        </CardHeader>
         <CardContent className="space-y-4 p-5">
           {/* Primary filters row */}
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-6">
@@ -401,46 +458,26 @@ export default function Transactions() {
 
             <MultiFilterSelect label="Category" values={filterCategories} options={availableCategories} onChange={setFilterCategories} placeholder="All categories" className="w-40" />
 
-            <div className="flex items-end gap-2 sm:col-span-2 xl:col-span-2">
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={() => setShowMoreFilters((v) => !v)}
-                className="w-full sm:w-auto"
-              >
-                {showMoreFilters ? <ChevronUp size={13} className="mr-1" /> : <ChevronDown size={13} className="mr-1" />}
-                More
-              </Button>
-              {activeFilters.length > 0 && (
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={clearAll}
-                  className="w-full sm:w-auto"
-                >
-                  <X size={13} className="mr-1" /> Clear all
-                </Button>
-              )}
-            </div>
+            <div className="hidden xl:block xl:col-span-2" />
           </div>
 
           {/* Secondary filters (dates + amount) */}
           {showMoreFilters && (
             <div className="grid grid-cols-1 gap-4 border-t border-border/70 pt-4 sm:grid-cols-2 lg:grid-cols-4">
               <div className="space-y-1.5">
-                <Label className="text-[11px] font-medium text-muted-foreground uppercase tracking-wider">From date</Label>
+                <Label className="text-[11px] font-bold text-muted-foreground uppercase tracking-wider">From date</Label>
                 <Input type="date" value={dateFrom} onChange={(e) => setDateFrom(e.target.value)} />
               </div>
               <div className="space-y-1.5">
-                <Label className="text-[11px] font-medium text-muted-foreground uppercase tracking-wider">To date</Label>
+                <Label className="text-[11px] font-bold text-muted-foreground uppercase tracking-wider">To date</Label>
                 <Input type="date" value={dateTo} onChange={(e) => setDateTo(e.target.value)} />
               </div>
               <div className="space-y-1.5">
-                <Label className="text-[11px] font-medium text-muted-foreground uppercase tracking-wider">Min amount (₹)</Label>
+                <Label className="text-[11px] font-bold text-muted-foreground uppercase tracking-wider">Min amount (₹)</Label>
                 <Input type="number" min="0" placeholder="0" value={minAmount} onChange={(e) => setMinAmount(e.target.value)} />
               </div>
               <div className="space-y-1.5">
-                <Label className="text-[11px] font-medium text-muted-foreground uppercase tracking-wider">Max amount (₹)</Label>
+                <Label className="text-[11px] font-bold text-muted-foreground uppercase tracking-wider">Max amount (₹)</Label>
                 <Input type="number" min="0" placeholder="No cap" value={maxAmount} onChange={(e) => setMaxAmount(e.target.value)} />
               </div>
             </div>
@@ -457,10 +494,13 @@ export default function Transactions() {
         </CardContent>
       </Card>
 
-      <DashboardCharts transactions={transactions} selectedMonth={dashboardMonth} onSelectedMonthChange={setDashboardMonth} />
+      <DashboardCharts transactions={transactions} selectedMonth={dashboardMonth} onSelectedMonthChange={setDashboardMonth} paletteKey={chartPalette} />
 
       {/* Display options */}
       <Card>
+        <CardHeader className="border-b border-border/70 pb-3">
+          <CardTitle className="text-base">View settings</CardTitle>
+        </CardHeader>
         <CardContent className="p-5">
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-3 lg:grid-cols-5">
             <FilterSelect label="Group by" value={groupBy} onChange={(e) => setGroupBy(e.target.value)} className="w-32">
@@ -475,8 +515,10 @@ export default function Transactions() {
               ))}
             </FilterSelect>
 
+            <PalettePicker value={chartPalette} onChange={setChartPalette} />
+
             <div className="space-y-1.5">
-              <Label className="text-[11px] font-medium text-muted-foreground uppercase tracking-wider">Table</Label>
+              <Label className="text-[11px] font-bold text-muted-foreground uppercase tracking-wider">Table</Label>
               <Button
                 variant="outline"
                 size="sm"
@@ -513,7 +555,7 @@ export default function Transactions() {
           </CardTitle>
         </CardHeader>
         <CardContent>
-          <ChartPanel data={transactions} groupBy={groupBy} chartType={chartType} />
+          <ChartPanel data={transactions} groupBy={groupBy} chartType={chartType} paletteKey={chartPalette} />
         </CardContent>
       </Card>
 

@@ -12,8 +12,38 @@ import { Input } from '@/components/ui/input'
 import { Badge } from '@/components/ui/badge'
 import { updateComments } from '@/api/client'
 import { ChevronUp, ChevronDown, ChevronsUpDown } from 'lucide-react'
+import { LONG_IDENTIFIER_RE, compactIdentifier } from '@/lib/compactIdentifiers'
 
 const helper = createColumnHelper()
+
+function CompactParticularsCell({ value }) {
+  const text = String(value || '—')
+  const parts = []
+  let lastIndex = 0
+
+  for (const match of text.matchAll(LONG_IDENTIFIER_RE)) {
+    if (match.index > lastIndex) parts.push(text.slice(lastIndex, match.index))
+    parts.push({ token: match[0] })
+    lastIndex = match.index + match[0].length
+  }
+  if (lastIndex < text.length) parts.push(text.slice(lastIndex))
+
+  if (!parts.some((part) => typeof part !== 'string')) {
+    return <span className="block max-w-[34rem] truncate font-medium text-foreground" title={text}>{text}</span>
+  }
+
+  return (
+    <span className="block max-w-[34rem] truncate font-medium text-foreground" title={text}>
+      {parts.map((part, index) => (
+        typeof part === 'string' ? part : (
+          <span key={`${part.token}-${index}`} className="mx-0.5 rounded-md bg-muted px-1.5 py-0.5 font-mono text-[11px] font-bold text-muted-foreground">
+            {compactIdentifier(part.token)}
+          </span>
+        )
+      ))}
+    </span>
+  )
+}
 
 function EditableCell({ value: initialValue, transactionId, onSave }) {
   const [editing, setEditing] = useState(false)
@@ -78,16 +108,20 @@ export default function TransactionTable({ data, onDataChange, visibleColumns = 
         size: 100,
         cell: (info) => `₹${info.getValue().toLocaleString('en-IN', { maximumFractionDigits: 2 })}`,
       }),
-      helper.accessor('particulars', { header: 'Particulars', size: 220 }),
+      helper.accessor('particulars', {
+        header: 'Particulars',
+        size: 260,
+        cell: (info) => <CompactParticularsCell value={info.getValue()} />,
+      }),
       helper.accessor('tag', {
         header: 'Tag',
         size: 120,
-        cell: (info) => info.getValue() ? <Badge variant="secondary">{info.getValue()}</Badge> : '—',
+        cell: (info) => info.getValue() ? <Badge className="bg-foreground text-background hover:bg-foreground">{info.getValue()}</Badge> : <span className="text-muted-foreground">—</span>,
       }),
       helper.accessor('category', {
         header: 'Category',
         size: 120,
-        cell: (info) => info.getValue() || '—',
+        cell: (info) => info.getValue() ? <span className="rounded-full bg-primary/10 px-2 py-1 text-xs font-bold text-primary">{info.getValue()}</span> : <span className="text-muted-foreground">—</span>,
       }),
       helper.accessor('comments', {
         header: 'Notes',
@@ -129,7 +163,7 @@ export default function TransactionTable({ data, onDataChange, visibleColumns = 
     <div className="space-y-3">
       <div className="overflow-auto rounded-lg border border-border/80 bg-card">
         <table className="w-full text-sm">
-          <thead className="bg-muted">
+          <thead className="bg-muted/80">
             {table.getHeaderGroups().map((hg) => (
               <tr key={hg.id}>
                 {hg.headers.map((header) => (
@@ -163,7 +197,7 @@ export default function TransactionTable({ data, onDataChange, visibleColumns = 
               </tr>
             ) : (
               table.getRowModel().rows.map((row) => (
-                <tr key={row.id} className="border-t border-border/70 transition-colors hover:bg-muted/45">
+                <tr key={row.id} className="border-t border-border/70 transition-colors odd:bg-background/35 hover:bg-muted/60">
                   {row.getVisibleCells().map((cell) => (
                     <td key={cell.id} className="px-3 py-3 align-middle" style={{ width: cell.column.getSize() }}>
                       {flexRender(cell.column.columnDef.cell, cell.getContext())}

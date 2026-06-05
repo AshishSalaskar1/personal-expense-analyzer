@@ -19,12 +19,10 @@ import {
   YAxis,
 } from 'recharts'
 import { Activity, ChevronDown, ChevronRight, PieChart as PieIcon, ReceiptText } from 'lucide-react'
+import { DEFAULT_CHART_PALETTE, getChartPalette } from '@/lib/chartPalettes'
 
 const fmt = (value) => `₹${Number(value).toLocaleString('en-IN', { maximumFractionDigits: 0 })}`
 const shortFmt = (value) => `₹${(Number(value) / 1000).toFixed(0)}k`
-
-const CHART_COLORS = ['#B45309', '#1D4ED8', '#7C3AED', '#047857', '#BE123C', '#0E7490', '#A16207', '#9333EA']
-const COLORS = CHART_COLORS
 
 const CHART_STYLE = {
   cursor: { fill: 'hsl(var(--muted))', fillOpacity: 0.65 },
@@ -49,12 +47,12 @@ const DIM_LABEL = { tag: 'Tag', category: 'Category' }
 const DASHBOARD_SECTIONS_KEY = 'dashboardSections:v2'
 
 // CRED-style stat card — big bold number, accent top stripe, no icon
-function StatCard({ label, value, detail, tone = 'primary' }) {
+function StatCard({ label, value, detail, tone = 'primary', colors }) {
   const accentColor = {
-    primary: CHART_COLORS[1],
-    income: CHART_COLORS[3],
-    spend: CHART_COLORS[0],
-    amber: CHART_COLORS[2],
+    primary: colors[1],
+    income: colors[3],
+    spend: colors[0],
+    amber: colors[2],
   }[tone]
 
   return (
@@ -93,7 +91,9 @@ function CollapsibleSection({ title, collapsed, onToggle, children }) {
   )
 }
 
-export default function DashboardCharts({ transactions = [], selectedMonth = '', onSelectedMonthChange }) {
+export default function DashboardCharts({ transactions = [], selectedMonth = '', onSelectedMonthChange, paletteKey = DEFAULT_CHART_PALETTE }) {
+  const palette = useMemo(() => getChartPalette(paletteKey), [paletteKey])
+  const colors = palette.swatches
   const cleanTransactions = useMemo(() => transactions.filter((transaction) => !transaction.ignored), [transactions])
 
   const availableMonths = useMemo(
@@ -262,10 +262,10 @@ export default function DashboardCharts({ transactions = [], selectedMonth = '',
 
       <CollapsibleSection title="Summary" collapsed={!!collapsedSections.summary} onToggle={() => toggleSection('summary')}>
         <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4">
-          <StatCard label="Total spend" value={fmt(monthSummary.debit)} detail={`${monthSummary.count} clean transactions`} tone="spend" />
-          <StatCard label="Credits" value={fmt(monthSummary.credit)} detail="Income, refunds, and transfers" tone="income" />
-          <StatCard label={net >= 0 ? 'Surplus' : 'Deficit'} value={fmt(Math.abs(net))} detail={`${Math.round(savingsRate)}% savings rate`} tone={net >= 0 ? 'primary' : 'spend'} />
-          <StatCard label="Avg debit" value={fmt(monthSummary.avgDebit)} detail={topTag ? `Largest tag: ${topTag.name}` : 'No debit data yet'} tone="amber" />
+          <StatCard label="Total spend" value={fmt(monthSummary.debit)} detail={`${monthSummary.count} clean transactions`} tone="spend" colors={colors} />
+          <StatCard label="Credits" value={fmt(monthSummary.credit)} detail="Income, refunds, and transfers" tone="income" colors={colors} />
+          <StatCard label={net >= 0 ? 'Surplus' : 'Deficit'} value={fmt(Math.abs(net))} detail={`${Math.round(savingsRate)}% savings rate`} tone={net >= 0 ? 'primary' : 'spend'} colors={colors} />
+          <StatCard label="Avg debit" value={fmt(monthSummary.avgDebit)} detail={topTag ? `Largest tag: ${topTag.name}` : 'No debit data yet'} tone="amber" colors={colors} />
         </div>
       </CollapsibleSection>
 
@@ -283,9 +283,9 @@ export default function DashboardCharts({ transactions = [], selectedMonth = '',
                   <YAxis tickFormatter={shortFmt} tick={CHART_STYLE.tick} tickLine={false} axisLine={false} width={54} />
                   <Tooltip formatter={(value) => fmt(value)} contentStyle={CHART_STYLE.tooltip} />
                   <Legend wrapperStyle={{ fontSize: '12px', paddingTop: '10px' }} />
-                  <Area type="monotone" dataKey="credit" name="Credit" stroke={CHART_COLORS[3]} fill={CHART_COLORS[3]} fillOpacity={0.16} strokeWidth={3} />
-                  <Area type="monotone" dataKey="debit" name="Spend" stroke={CHART_COLORS[0]} fill={CHART_COLORS[0]} fillOpacity={0.18} strokeWidth={3} />
-                  <Line type="monotone" dataKey="net" name="Net" stroke={CHART_COLORS[1]} strokeWidth={3} dot={false} strokeDasharray="5 3" />
+                  <Area type="monotone" dataKey="credit" name="Credit" stroke={palette.credit} fill={palette.credit} fillOpacity={0.16} strokeWidth={3} />
+                  <Area type="monotone" dataKey="debit" name="Spend" stroke={palette.spend} fill={palette.spend} fillOpacity={0.18} strokeWidth={3} />
+                  <Line type="monotone" dataKey="net" name="Net" stroke={palette.net} strokeWidth={3} dot={false} strokeDasharray="5 3" />
                 </AreaChart>
               </ResponsiveContainer>
             </CardContent>
@@ -336,7 +336,7 @@ export default function DashboardCharts({ transactions = [], selectedMonth = '',
                       onClick={!drillCategory && catChartBy === 'category' ? (entry) => setDrillCategory(entry.name) : undefined}
                     >
                       {(drillCategory ? drillBreakdown : categoryBreakdown).map((entry, index) => (
-                        <Cell key={entry.name} fill={COLORS[index % COLORS.length]} />
+                        <Cell key={entry.name} fill={colors[index % colors.length]} />
                       ))}
                     </Pie>
                     {!drillCategory && catChartBy === 'category' ? (
@@ -374,13 +374,13 @@ export default function DashboardCharts({ transactions = [], selectedMonth = '',
                     <XAxis type="number" tickFormatter={shortFmt} tick={CHART_STYLE.tick} axisLine={false} tickLine={false} />
                     <YAxis type="category" dataKey="name" width={96} tick={CHART_STYLE.tick} axisLine={false} tickLine={false} />
                     <Tooltip formatter={(value) => fmt(value)} contentStyle={CHART_STYLE.tooltip} cursor={CHART_STYLE.cursor} />
-                    <Bar dataKey="value" fill={CHART_COLORS[0]} stroke="#7C2D12" strokeWidth={1.5} radius={[0, 8, 8, 0]} barSize={18}>
+                    <Bar dataKey="value" fill={palette.spend} stroke={palette.spendStroke} strokeWidth={1.5} radius={[0, 8, 8, 0]} barSize={18}>
                       <LabelList
                         dataKey="value"
                         position="right"
                         offset={6}
                         formatter={(v) => `₹${(v / 1000).toFixed(0)}k`}
-                        style={{ fontSize: 11, fontWeight: 800, fill: '#7C2D12' }}
+                        style={{ fontSize: 11, fontWeight: 800, fill: palette.spendStroke }}
                       />
                     </Bar>
                   </BarChart>
@@ -403,12 +403,12 @@ export default function DashboardCharts({ transactions = [], selectedMonth = '',
                     <XAxis dataKey="day" tick={CHART_STYLE.tick} axisLine={false} tickLine={false} />
                     <YAxis tickFormatter={shortFmt} tick={CHART_STYLE.tick} axisLine={false} tickLine={false} width={48} />
                     <Tooltip formatter={(value) => fmt(value)} labelFormatter={(day) => `Day ${day}`} contentStyle={CHART_STYLE.tooltip} cursor={CHART_STYLE.cursor} />
-                    <Bar dataKey="amount" name="Spend" fill={CHART_COLORS[1]} stroke="#1E3A8A" strokeWidth={1.5} radius={[8, 8, 0, 0]} barSize={18}>
+                    <Bar dataKey="amount" name="Spend" fill={palette.net} stroke={palette.netStroke} strokeWidth={1.5} radius={[8, 8, 0, 0]} barSize={18}>
                       <LabelList
                         dataKey="amount"
                         position="top"
                         formatter={(v) => (v >= 1000 ? `₹${(v / 1000).toFixed(0)}k` : '')}
-                        style={{ fontSize: 10, fontWeight: 800, fill: '#1E3A8A' }}
+                        style={{ fontSize: 10, fontWeight: 800, fill: palette.netStroke }}
                       />
                     </Bar>
                   </BarChart>

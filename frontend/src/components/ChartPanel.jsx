@@ -15,8 +15,7 @@ import {
   ResponsiveContainer,
 } from 'recharts'
 import { ChevronRight } from 'lucide-react'
-
-const COLORS = ['#B45309', '#1D4ED8', '#7C3AED', '#047857', '#BE123C', '#0E7490', '#A16207', '#9333EA']
+import { DEFAULT_CHART_PALETTE, getChartPalette } from '@/lib/chartPalettes'
 
 const CHART_STYLE = {
   cursor: { fill: 'hsl(var(--muted))', fillOpacity: 0.65 },
@@ -43,7 +42,9 @@ const fmt = (v) => `₹${Number(v).toLocaleString('en-IN', { maximumFractionDigi
  *   groupBy     – 'tag' | 'category' | 'type' | 'month'
  *   chartType   – 'bar' | 'line' | 'pie'  (default 'bar')
  */
-export default function ChartPanel({ data = [], groupBy = 'tag', chartType = 'bar' }) {
+export default function ChartPanel({ data = [], groupBy = 'tag', chartType = 'bar', paletteKey = DEFAULT_CHART_PALETTE }) {
+  const palette = useMemo(() => getChartPalette(paletteKey), [paletteKey])
+  const colors = palette.swatches
   const [drillKey, setDrillKey] = useState(null)
   useEffect(() => { setDrillKey(null) }, [groupBy])
 
@@ -171,7 +172,7 @@ export default function ChartPanel({ data = [], groupBy = 'tag', chartType = 'ba
               onClick={canDrill ? (entry) => setDrillKey(entry.name) : undefined}
             >
               {active.pieData.map((_, i) => (
-                <Cell key={i} fill={COLORS[i % COLORS.length]} />
+                <Cell key={i} fill={colors[i % colors.length]} />
               ))}
             </Pie>
             <Tooltip
@@ -200,7 +201,7 @@ export default function ChartPanel({ data = [], groupBy = 'tag', chartType = 'ba
             />
             <Legend wrapperStyle={{ fontSize: '12px' }} />
             {active.keys.map((k, i) => (
-              <Line key={k} type="monotone" dataKey={k} stroke={COLORS[i % COLORS.length]} dot={false} strokeWidth={2} />
+              <Line key={k} type="monotone" dataKey={k} stroke={colors[i % colors.length]} dot={false} strokeWidth={2.5} />
             ))}
           </LineChart>
         </ResponsiveContainer>
@@ -228,7 +229,7 @@ export default function ChartPanel({ data = [], groupBy = 'tag', chartType = 'ba
               <Bar
                 key={k}
                 dataKey={k}
-                fill={COLORS[i % COLORS.length]}
+                fill={colors[i % colors.length]}
                 fillOpacity={0.95}
                 stroke="hsl(var(--foreground) / 0.28)"
                 strokeWidth={1}
@@ -262,7 +263,7 @@ export default function ChartPanel({ data = [], groupBy = 'tag', chartType = 'ba
             <Bar
               key={k}
               dataKey={k}
-              fill={COLORS[i % COLORS.length]}
+              fill={colors[i % colors.length]}
               fillOpacity={0.95}
               stroke="hsl(var(--foreground) / 0.28)"
               strokeWidth={1}
