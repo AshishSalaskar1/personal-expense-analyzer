@@ -26,16 +26,17 @@ const shortFmt = (value) => `₹${(Number(value) / 1000).toFixed(0)}k`
 const COLORS = ['#047857', '#4f46e5', '#d97706', '#be123c', '#0891b2', '#7c3aed', '#65a30d', '#c2410c']
 
 const CHART_STYLE = {
-  grid: 'hsl(214 18% 85% / 0.75)',
+  cursor: { fill: 'hsl(var(--muted))', fillOpacity: 0.55 },
+  grid: 'hsl(var(--border) / 0.75)',
   tooltip: {
-    backgroundColor: '#ffffff',
-    border: '1px solid hsl(214 18% 85%)',
+    backgroundColor: 'hsl(var(--card))',
+    border: '1px solid hsl(var(--border))',
     borderRadius: '8px',
     boxShadow: '0 14px 30px rgba(15, 23, 42, 0.12)',
-    color: '#1f2937',
+    color: 'hsl(var(--foreground))',
     fontSize: '12px',
   },
-  tick: { fontSize: 12, fill: '#536071' },
+  tick: { fontSize: 12, fill: 'hsl(var(--muted-foreground))' },
 }
 
 function StatCard({ label, value, detail, icon: Icon, tone = 'primary' }) {
@@ -239,7 +240,7 @@ export default function Dashboard() {
                   <CartesianGrid strokeDasharray="4 4" stroke={CHART_STYLE.grid} horizontal={false} />
                   <XAxis type="number" tickFormatter={shortFmt} tick={CHART_STYLE.tick} axisLine={false} tickLine={false} />
                   <YAxis type="category" dataKey="name" width={96} tick={CHART_STYLE.tick} axisLine={false} tickLine={false} />
-                  <Tooltip formatter={(value) => fmt(value)} contentStyle={CHART_STYLE.tooltip} cursor={{ fill: 'hsl(210 20% 94%)' }} />
+                  <Tooltip formatter={(value) => fmt(value)} contentStyle={CHART_STYLE.tooltip} cursor={CHART_STYLE.cursor} />
                   <Bar dataKey="value" fill="#047857" radius={[0, 6, 6, 0]} />
                 </BarChart>
               </ResponsiveContainer>
@@ -260,7 +261,7 @@ export default function Dashboard() {
                   <CartesianGrid strokeDasharray="4 4" stroke={CHART_STYLE.grid} vertical={false} />
                   <XAxis dataKey="day" tick={CHART_STYLE.tick} axisLine={false} tickLine={false} />
                   <YAxis tickFormatter={shortFmt} tick={CHART_STYLE.tick} axisLine={false} tickLine={false} width={54} />
-                  <Tooltip formatter={(value) => fmt(value)} labelFormatter={(day) => `Day ${day}`} contentStyle={CHART_STYLE.tooltip} cursor={{ fill: 'hsl(210 20% 94%)' }} />
+                  <Tooltip formatter={(value) => fmt(value)} labelFormatter={(day) => `Day ${day}`} contentStyle={CHART_STYLE.tooltip} cursor={CHART_STYLE.cursor} />
                   <Bar dataKey="amount" name="Spend" fill="#4f46e5" radius={[6, 6, 0, 0]} />
                 </BarChart>
               </ResponsiveContainer>

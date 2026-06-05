@@ -1,11 +1,11 @@
 import { NavLink } from 'react-router-dom'
-import { Upload, LayoutDashboard, Table2, Tags, WalletCards } from 'lucide-react'
+import { Upload, LayoutDashboard, Tags, WalletCards } from 'lucide-react'
+import ThemeToggle from '@/components/ThemeToggle'
 import { cn } from '@/lib/utils'
 
 const links = [
   { to: '/', label: 'Upload', icon: Upload },
   { to: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
-  { to: '/transactions', label: 'Transactions', icon: Table2 },
   { to: '/tags', label: 'Tag Manager', icon: Tags },
 ]
 
@@ -48,10 +48,13 @@ export default function Sidebar() {
           ))}
         </nav>
 
-        <div className="mx-5 mb-5 rounded-lg border border-border/80 bg-background p-4">
-          <p className="text-xs font-semibold uppercase tracking-[0.16em] text-muted-foreground">Status</p>
-          <p className="mt-2 text-sm font-semibold text-foreground">Local-first ledger</p>
-          <p className="mt-1 text-xs leading-5 text-muted-foreground">Upload, tag, analyze, export.</p>
+        <div className="mx-5 mb-5 space-y-4 rounded-lg border border-border/80 bg-background p-4">
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-[0.16em] text-muted-foreground">Status</p>
+            <p className="mt-2 text-sm font-semibold text-foreground">Local-first ledger</p>
+            <p className="mt-1 text-xs leading-5 text-muted-foreground">Upload, tag, analyze, export.</p>
+          </div>
+          <ThemeToggle className="w-full" />
         </div>
       </aside>
 
@@ -72,6 +75,7 @@ export default function Sidebar() {
             <span className="max-w-full truncate">{label}</span>
           </NavLink>
         ))}
+        <ThemeToggle className="min-h-14 flex-col gap-1 border-0 bg-transparent px-1 py-0 text-[11px] text-muted-foreground shadow-none hover:bg-muted hover:text-foreground" showLabel={false} />
       </nav>
     </>
   )

@@ -2,6 +2,20 @@ import axios from 'axios'
 
 const api = axios.create({ baseURL: '/api' })
 
+const paramsSerializer = (params) => {
+  const searchParams = new URLSearchParams()
+  Object.entries(params).forEach(([key, value]) => {
+    if (Array.isArray(value)) {
+      value.forEach((item) => searchParams.append(key, item))
+      return
+    }
+    if (value !== undefined && value !== null && value !== '') {
+      searchParams.append(key, value)
+    }
+  })
+  return searchParams.toString()
+}
+
 // ── Upload ──────────────────────────────────────────────────────────────────
 export const uploadPDF = (formData) =>
   api.post('/upload', formData, { headers: { 'Content-Type': 'multipart/form-data' } })
@@ -18,7 +32,7 @@ export const getTransactions = (params = {}) => {
   // map frontend filter keys to backend query param names
   const p = { ...params }
   if (p.type) { p.tx_type = p.type; delete p.type }
-  return api.get('/transactions', { params: p })
+  return api.get('/transactions', { params: p, paramsSerializer })
 }
 
 export const updateComments = (id, comments) =>

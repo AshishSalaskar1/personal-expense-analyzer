@@ -1,4 +1,4 @@
-import { useEffect, useState, useMemo } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import PageShell from '@/components/PageShell'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -6,19 +6,45 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Select } from '@/components/ui/select'
 import { Checkbox } from '@/components/ui/checkbox'
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import TransactionTable from '@/components/TransactionTable'
 import ChartPanel from '@/components/ChartPanel'
+import DashboardCharts from '@/components/DashboardCharts'
 import ExportImport from '@/components/ExportImport'
 import { getTransactions, getMonths, getTagMappings } from '@/api/client'
-import { SlidersHorizontal, X, ChevronDown, ChevronUp } from 'lucide-react'
+import { CopyPlus, Save, SlidersHorizontal, Trash2, X, ChevronDown, ChevronUp } from 'lucide-react'
 
 const ALL_COLUMNS = ['date', 'type', 'amount', 'particulars', 'tag', 'category', 'comments', 'month']
+const DEFAULT_VISIBLE_COLUMNS = ALL_COLUMNS.filter((c) => c !== 'month')
+const SAVED_DASHBOARDS_KEY = 'expense-buddy-saved-dashboards'
 const GROUP_BY_OPTIONS = [
   { value: 'tag', label: 'Tag' },
   { value: 'category', label: 'Category' },
   { value: 'type', label: 'Type' },
   { value: 'month', label: 'Month' },
 ]
+
+function loadSavedDashboards() {
+  if (typeof window === 'undefined') return []
+
+  try {
+    const parsed = JSON.parse(window.localStorage.getItem(SAVED_DASHBOARDS_KEY) || '[]')
+    return Array.isArray(parsed) ? parsed : []
+  } catch {
+    return []
+  }
+}
+
+function persistSavedDashboards(dashboards) {
+  window.localStorage.setItem(SAVED_DASHBOARDS_KEY, JSON.stringify(dashboards))
+}
+
+function createDashboardId() {
+  if (typeof crypto !== 'undefined' && crypto.randomUUID) {
+    return crypto.randomUUID()
+  }
+  return `${Date.now()}-${Math.random().toString(16).slice(2)}`
+}
 const CHART_TYPES = [
   { value: 'bar', label: 'Stacked Bar' },
   { value: 'grouped', label: 'Grouped Bar' },
@@ -33,6 +59,70 @@ function FilterSelect({ label, value, onChange, children, className = '' }) {
       <Select value={value} onChange={onChange} className={`w-full text-sm ${className}`}>
         {children}
       </Select>
+    </div>
+  )
+}
+
+function MultiFilterSelect({ label, values, options, onChange, placeholder, className = '' }) {
+  const [open, setOpen] = useState(false)
+  const containerRef = useRef(null)
+  const selectedValues = useMemo(() => new Set(values), [values])
+
+  useEffect(() => {
+    const handlePointerDown = (event) => {
+      if (!containerRef.current?.contains(event.target)) {
+        setOpen(false)
+      }
+    }
+    document.addEventListener('pointerdown', handlePointerDown)
+    return () => document.removeEventListener('pointerdown', handlePointerDown)
+  }, [])
+
+  const toggleValue = (option) => {
+    onChange(selectedValues.has(option) ? values.filter((value) => value !== option) : [...values, option])
+  }
+
+  const summary = values.length === 0 ? placeholder : values.length === 1 ? values[0] : `${values.length} selected`
+
+  return (
+    <div ref={containerRef} className="relative space-y-1.5">
+      <Label className="text-[11px] font-medium text-muted-foreground uppercase tracking-wider">{label}</Label>
+      <button
+        type="button"
+        onClick={() => setOpen((value) => !value)}
+        onKeyDown={(event) => {
+          if (event.key === 'Escape') setOpen(false)
+        }}
+        className={`flex min-h-11 w-full items-center justify-between gap-2 rounded-lg border border-input bg-card px-3 py-2 text-left text-sm text-foreground ring-offset-background transition-colors hover:border-primary/45 focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 focus:ring-offset-background cursor-pointer ${className}`}
+        aria-expanded={open}
+      >
+        <span className={values.length ? 'truncate' : 'truncate text-muted-foreground'}>{summary}</span>
+        <ChevronDown size={15} className="shrink-0 text-muted-foreground" />
+      </button>
+      {open && (
+        <div className="absolute left-0 right-0 z-50 mt-2 overflow-hidden rounded-lg border border-border bg-popover text-popover-foreground shadow-xl">
+          <div className="flex items-center justify-between gap-2 border-b border-border/70 px-3 py-2">
+            <span className="text-xs font-semibold text-muted-foreground">{values.length} selected</span>
+            {values.length > 0 && (
+              <button type="button" onClick={() => onChange([])} className="text-xs font-semibold text-primary hover:text-foreground cursor-pointer">
+                Clear
+              </button>
+            )}
+          </div>
+          <div className="max-h-64 overflow-auto py-1">
+            {options.length === 0 ? (
+              <div className="px-3 py-3 text-sm text-muted-foreground">No options available</div>
+            ) : (
+              options.map((option) => (
+                <label key={option} className="flex min-h-10 cursor-pointer items-center gap-2 px-3 py-2 text-sm transition-colors hover:bg-muted">
+                  <Checkbox checked={selectedValues.has(option)} onCheckedChange={() => toggleValue(option)} />
+                  <span className="min-w-0 flex-1 truncate">{option}</span>
+                </label>
+              ))
+            )}
+          </div>
+        </div>
+      )}
     </div>
   )
 }
@@ -52,24 +142,48 @@ export default function Transactions() {
   const [transactions, setTransactions] = useState([])
   const [months, setMonths] = useState([])
   const [tagMappings, setTagMappings] = useState([])
+  const [savedDashboards, setSavedDashboards] = useState(loadSavedDashboards)
+  const [selectedDashboardId, setSelectedDashboardId] = useState('')
+  const [saveDialogOpen, setSaveDialogOpen] = useState(false)
+  const [dashboardName, setDashboardName] = useState('')
   const [loading, setLoading] = useState(true)
   const [showMoreFilters, setShowMoreFilters] = useState(false)
 
   // Filters
   const [filterMonth, setFilterMonth] = useState('')
   const [filterType, setFilterType] = useState('')
-  const [filterTag, setFilterTag] = useState('')
-  const [filterCategory, setFilterCategory] = useState('')
+  const [filterTags, setFilterTags] = useState([])
+  const [filterCategories, setFilterCategories] = useState([])
   const [dateFrom, setDateFrom] = useState('')
   const [dateTo, setDateTo] = useState('')
   const [minAmount, setMinAmount] = useState('')
   const [maxAmount, setMaxAmount] = useState('')
 
   // Display options
+  const [dashboardMonth, setDashboardMonth] = useState('')
   const [groupBy, setGroupBy] = useState('tag')
   const [chartType, setChartType] = useState('bar')
-  const [visibleCols, setVisibleCols] = useState(ALL_COLUMNS.filter((c) => c !== 'month'))
+  const [visibleCols, setVisibleCols] = useState(DEFAULT_VISIBLE_COLUMNS)
   const [showColPicker, setShowColPicker] = useState(false)
+
+  const currentDashboardState = useMemo(() => ({
+    filterMonth,
+    filterType,
+    filterTags,
+    filterCategories,
+    dateFrom,
+    dateTo,
+    minAmount,
+    maxAmount,
+    dashboardMonth,
+    groupBy,
+    chartType,
+    visibleCols,
+    showMoreFilters,
+    showColPicker,
+  }), [filterMonth, filterType, filterTags, filterCategories, dateFrom, dateTo, minAmount, maxAmount, dashboardMonth, groupBy, chartType, visibleCols, showMoreFilters, showColPicker])
+
+  const selectedDashboard = savedDashboards.find((dashboard) => dashboard.id === selectedDashboardId)
 
   useEffect(() => {
     getMonths().then((r) => setMonths(r.data))
@@ -80,8 +194,8 @@ export default function Transactions() {
     const params = {}
     if (filterMonth) params.month = filterMonth
     if (filterType) params.type = filterType
-    if (filterTag) params.tag = filterTag
-    if (filterCategory) params.category = filterCategory
+    if (filterTags.length) params.tag = filterTags
+    if (filterCategories.length) params.category = filterCategories
     if (dateFrom) params.date_from = dateFrom
     if (dateTo) params.date_to = dateTo
     if (minAmount) params.min_amount = minAmount
@@ -89,7 +203,7 @@ export default function Transactions() {
     getTransactions(params)
       .then((r) => setTransactions(r.data))
       .finally(() => setLoading(false))
-  }, [filterMonth, filterType, filterTag, filterCategory, dateFrom, dateTo, minAmount, maxAmount])
+  }, [filterMonth, filterType, filterTags, filterCategories, dateFrom, dateTo, minAmount, maxAmount])
 
   // Derive unique tags and categories from tag mappings
   const availableTags = useMemo(
@@ -114,15 +228,81 @@ export default function Transactions() {
   }
 
   const clearAll = () => {
-    setFilterMonth(''); setFilterType(''); setFilterTag(''); setFilterCategory('')
+    setFilterMonth(''); setFilterType(''); setFilterTags([]); setFilterCategories([])
     setDateFrom(''); setDateTo(''); setMinAmount(''); setMaxAmount('')
+  }
+
+  const applyDashboardState = (state = {}) => {
+    setFilterMonth(state.filterMonth || '')
+    setFilterType(state.filterType || '')
+    setFilterTags(Array.isArray(state.filterTags) ? state.filterTags : [])
+    setFilterCategories(Array.isArray(state.filterCategories) ? state.filterCategories : [])
+    setDateFrom(state.dateFrom || '')
+    setDateTo(state.dateTo || '')
+    setMinAmount(state.minAmount || '')
+    setMaxAmount(state.maxAmount || '')
+    setDashboardMonth(state.dashboardMonth || '')
+    setGroupBy(GROUP_BY_OPTIONS.some((option) => option.value === state.groupBy) ? state.groupBy : 'tag')
+    setChartType(CHART_TYPES.some((option) => option.value === state.chartType) ? state.chartType : 'bar')
+    setVisibleCols(Array.isArray(state.visibleCols) && state.visibleCols.length ? state.visibleCols.filter((col) => ALL_COLUMNS.includes(col)) : DEFAULT_VISIBLE_COLUMNS)
+    setShowMoreFilters(Boolean(state.showMoreFilters))
+    setShowColPicker(Boolean(state.showColPicker))
+  }
+
+  const loadDashboard = (dashboardId) => {
+    setSelectedDashboardId(dashboardId)
+    const dashboard = savedDashboards.find((item) => item.id === dashboardId)
+    if (dashboard) {
+      applyDashboardState(dashboard.state)
+    }
+  }
+
+  const saveDashboards = (nextDashboards) => {
+    setSavedDashboards(nextDashboards)
+    persistSavedDashboards(nextDashboards)
+  }
+
+  const saveDashboardAsNew = () => {
+    const name = dashboardName.trim()
+    if (!name) return
+
+    const dashboard = {
+      id: createDashboardId(),
+      name,
+      state: currentDashboardState,
+      updatedAt: new Date().toISOString(),
+    }
+    const nextDashboards = [...savedDashboards, dashboard].sort((a, b) => a.name.localeCompare(b.name))
+    saveDashboards(nextDashboards)
+    setSelectedDashboardId(dashboard.id)
+    setDashboardName('')
+    setSaveDialogOpen(false)
+  }
+
+  const updateSelectedDashboard = () => {
+    if (!selectedDashboard) return
+
+    const nextDashboards = savedDashboards.map((dashboard) => (
+      dashboard.id === selectedDashboard.id
+        ? { ...dashboard, state: currentDashboardState, updatedAt: new Date().toISOString() }
+        : dashboard
+    ))
+    saveDashboards(nextDashboards)
+  }
+
+  const deleteSelectedDashboard = () => {
+    if (!selectedDashboard) return
+
+    const nextDashboards = savedDashboards.filter((dashboard) => dashboard.id !== selectedDashboard.id)
+    saveDashboards(nextDashboards)
+    setSelectedDashboardId('')
   }
 
   const activeFilters = [
     filterMonth && { key: 'month', label: `Month: ${filterMonth}`, clear: () => setFilterMonth('') },
     filterType && { key: 'type', label: `Type: ${filterType}`, clear: () => setFilterType('') },
-    filterTag && { key: 'tag', label: `Tag: ${filterTag}`, clear: () => setFilterTag('') },
-    filterCategory && { key: 'category', label: `Category: ${filterCategory}`, clear: () => setFilterCategory('') },
+    ...filterTags.map((tag) => ({ key: `tag-${tag}`, label: `Tag: ${tag}`, clear: () => setFilterTags((values) => values.filter((value) => value !== tag)) })),
+    ...filterCategories.map((category) => ({ key: `category-${category}`, label: `Category: ${category}`, clear: () => setFilterCategories((values) => values.filter((value) => value !== category)) })),
     dateFrom && { key: 'from', label: `From: ${dateFrom}`, clear: () => setDateFrom('') },
     dateTo && { key: 'to', label: `To: ${dateTo}`, clear: () => setDateTo('') },
     minAmount && { key: 'min', label: `Min: ₹${minAmount}`, clear: () => setMinAmount('') },
@@ -131,11 +311,73 @@ export default function Transactions() {
 
   return (
     <PageShell
-      eyebrow="Ledger"
-      title="Transactions"
-      description="Filter, inspect, chart, annotate, and export your statement data from one consistent workspace."
+      eyebrow="Overview"
+      title="Dashboard"
+      description="Filter, chart, inspect, annotate, and export your statement data from one consistent workspace."
       actions={<ExportImport />}
     >
+
+      <Card>
+        <CardContent className="space-y-4 p-5">
+          <div className="grid grid-cols-1 gap-4 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-end">
+            <div className="space-y-1.5">
+              <Label className="text-[11px] font-medium text-muted-foreground uppercase tracking-wider">Saved dashboard</Label>
+              <Select value={selectedDashboardId} onChange={(event) => loadDashboard(event.target.value)}>
+                <option value="">Select a saved dashboard</option>
+                {savedDashboards.map((dashboard) => (
+                  <option key={dashboard.id} value={dashboard.id}>{dashboard.name}</option>
+                ))}
+              </Select>
+            </div>
+            <div className="flex flex-wrap gap-2">
+              <Button variant="outline" onClick={() => setSaveDialogOpen(true)}>
+                <CopyPlus size={15} /> Save as new
+              </Button>
+              <Button onClick={updateSelectedDashboard} disabled={!selectedDashboard}>
+                <Save size={15} /> Update saved
+              </Button>
+              <Button variant="ghost" onClick={deleteSelectedDashboard} disabled={!selectedDashboard}>
+                <Trash2 size={15} /> Delete
+              </Button>
+            </div>
+          </div>
+          {selectedDashboard && (
+            <p className="text-xs text-muted-foreground">
+              Loaded: <span className="font-semibold text-foreground">{selectedDashboard.name}</span>
+            </p>
+          )}
+        </CardContent>
+      </Card>
+
+      <Dialog open={saveDialogOpen} onOpenChange={setSaveDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Save dashboard</DialogTitle>
+            <DialogDescription>
+              Save the current filters, dashboard month, custom chart settings, and table columns as a reusable dashboard.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-1.5 py-4">
+            <Label htmlFor="dashboard-name" className="text-[11px] font-medium text-muted-foreground uppercase tracking-wider">Dashboard name</Label>
+            <Input
+              id="dashboard-name"
+              value={dashboardName}
+              onChange={(event) => setDashboardName(event.target.value)}
+              onKeyDown={(event) => {
+                if (event.key === 'Enter') saveDashboardAsNew()
+              }}
+              placeholder="Monthly essentials"
+              autoFocus
+            />
+          </div>
+          <DialogFooter>
+            <Button variant="ghost" onClick={() => setSaveDialogOpen(false)}>Cancel</Button>
+            <Button onClick={saveDashboardAsNew} disabled={!dashboardName.trim()}>
+              <Save size={15} /> Save dashboard
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* Filter panel */}
       <Card>
@@ -155,19 +397,9 @@ export default function Transactions() {
               <option value="credit">Credit</option>
             </FilterSelect>
 
-            <FilterSelect label="Tag" value={filterTag} onChange={(e) => setFilterTag(e.target.value)} className="w-40">
-              <option value="">All tags</option>
-              {availableTags.map((t) => (
-                <option key={t} value={t}>{t}</option>
-              ))}
-            </FilterSelect>
+            <MultiFilterSelect label="Tag" values={filterTags} options={availableTags} onChange={setFilterTags} placeholder="All tags" className="w-40" />
 
-            <FilterSelect label="Category" value={filterCategory} onChange={(e) => setFilterCategory(e.target.value)} className="w-40">
-              <option value="">All categories</option>
-              {availableCategories.map((c) => (
-                <option key={c} value={c}>{c}</option>
-              ))}
-            </FilterSelect>
+            <MultiFilterSelect label="Category" values={filterCategories} options={availableCategories} onChange={setFilterCategories} placeholder="All categories" className="w-40" />
 
             <div className="flex items-end gap-2 sm:col-span-2 xl:col-span-2">
               <Button
@@ -225,6 +457,8 @@ export default function Transactions() {
         </CardContent>
       </Card>
 
+      <DashboardCharts transactions={transactions} selectedMonth={dashboardMonth} onSelectedMonthChange={setDashboardMonth} />
+
       {/* Display options */}
       <Card>
         <CardContent className="p-5">
@@ -270,7 +504,7 @@ export default function Transactions() {
         </CardContent>
       </Card>
 
-      {/* Charts */}
+      {/* Custom chart */}
       <Card>
         <CardHeader className="pb-3">
           <CardTitle className="text-base font-semibold">

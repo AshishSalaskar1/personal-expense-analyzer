@@ -1,7 +1,6 @@
-import { BrowserRouter, Routes, Route } from 'react-router-dom'
+import { BrowserRouter, Navigate, Routes, Route } from 'react-router-dom'
 import Sidebar from '@/components/Sidebar'
 import Upload from '@/pages/Upload'
-import Dashboard from '@/pages/Dashboard'
 import Transactions from '@/pages/Transactions'
 import TagManager from '@/pages/TagManager'
 
@@ -13,8 +12,9 @@ export default function App() {
         <main className="min-w-0 flex-1 overflow-auto pb-20 lg:pb-0">
           <Routes>
             <Route path="/" element={<Upload />} />
-            <Route path="/dashboard" element={<Dashboard />} />
+            <Route path="/dashboard" element={<Transactions />} />
             <Route path="/transactions" element={<Transactions />} />
+            <Route path="*" element={<Navigate to="/dashboard" replace />} />
             <Route path="/tags" element={<TagManager />} />
           </Routes>
         </main>

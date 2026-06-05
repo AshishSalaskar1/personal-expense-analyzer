@@ -1,4 +1,4 @@
-import { useMemo } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import {
   LineChart,
   Line,
@@ -14,19 +14,22 @@ import {
   Legend,
   ResponsiveContainer,
 } from 'recharts'
+import { ChevronRight } from 'lucide-react'
 
 const COLORS = ['#047857', '#4f46e5', '#d97706', '#be123c', '#0891b2', '#7c3aed', '#65a30d', '#c2410c', '#0f766e', '#b45309']
 
 const CHART_STYLE = {
-  grid: 'hsl(214 18% 85% / 0.75)',
+  cursor: { fill: 'hsl(var(--muted))', fillOpacity: 0.55 },
+  grid: 'hsl(var(--border) / 0.75)',
   tooltip: {
-    backgroundColor: '#ffffff',
-    border: '1px solid hsl(214 18% 85%)',
+    backgroundColor: 'hsl(var(--card))',
+    border: '1px solid hsl(var(--border))',
     borderRadius: '8px',
     boxShadow: '0 14px 30px rgba(15, 23, 42, 0.12)',
+    color: 'hsl(var(--foreground))',
     fontSize: '12px',
   },
-  tick: { fontSize: 12, fill: '#536071' },
+  tick: { fontSize: 12, fill: 'hsl(var(--muted-foreground))' },
 }
 
 const fmt = (v) => `₹${Number(v).toLocaleString('en-IN', { maximumFractionDigits: 0 })}`
@@ -40,6 +43,9 @@ const fmt = (v) => `₹${Number(v).toLocaleString('en-IN', { maximumFractionDigi
  *   chartType   – 'bar' | 'line' | 'pie'  (default 'bar')
  */
 export default function ChartPanel({ data = [], groupBy = 'tag', chartType = 'bar' }) {
+  const [drillKey, setDrillKey] = useState(null)
+  useEffect(() => { setDrillKey(null) }, [groupBy])
+
   // Aggregate debits by groupBy × month for bar/line, or by groupBy for pie
   const { barData, pieData, keys } = useMemo(() => {
     const debits = data.filter((t) => t.type === 'debit' && !t.ignored)
@@ -81,6 +87,62 @@ export default function ChartPanel({ data = [], groupBy = 'tag', chartType = 'ba
     return { barData, pieData, keys: allKeys }
   }, [data, groupBy])
 
+  // Drill-down: when drillKey is set (category → tags), re-aggregate by tag
+  const drillData = useMemo(() => {
+    if (!drillKey || groupBy !== 'category') return null
+    const debits = data.filter((t) => t.type === 'debit' && !t.ignored && (t.category || 'Unknown') === drillKey)
+
+    const allMonths = [...new Set(debits.map((t) => t.month))].sort()
+    const allTagKeys = [...new Set(debits.map((t) => t.tag || 'Unknown'))].filter(Boolean).slice(0, 10)
+
+    const monthMap = {}
+    for (const m of allMonths) {
+      monthMap[m] = { month: m }
+      for (const k of allTagKeys) monthMap[m][k] = 0
+    }
+    for (const t of debits) {
+      const k = t.tag || 'Unknown'
+      if (monthMap[t.month] && allTagKeys.includes(k)) {
+        monthMap[t.month][k] = (monthMap[t.month][k] || 0) + t.amount
+      }
+    }
+    const drillBarData = allMonths.map((m) => {
+      const row = { ...monthMap[m] }
+      for (const k of allTagKeys) row[k] = Math.round(row[k] || 0)
+      return row
+    })
+
+    const pieMap = {}
+    for (const t of debits) {
+      const k = t.tag || 'Unknown'
+      pieMap[k] = (pieMap[k] || 0) + t.amount
+    }
+    const drillPieData = Object.entries(pieMap)
+      .map(([name, value]) => ({ name, value: Math.round(value) }))
+      .sort((a, b) => b.value - a.value)
+      .slice(0, 12)
+
+    return { barData: drillBarData, pieData: drillPieData, keys: allTagKeys }
+  }, [drillKey, data, groupBy])
+
+  const active = drillData || { barData, pieData, keys }
+  const canDrill = groupBy === 'category' && !drillKey
+
+  const breadcrumb = drillKey ? (
+    <div className="mb-3 flex items-center gap-1.5 text-xs">
+      <button
+        type="button"
+        onClick={() => setDrillKey(null)}
+        className="font-medium text-primary hover:underline"
+      >
+        All Categories
+      </button>
+      <ChevronRight size={12} className="text-muted-foreground" />
+      <span className="font-medium text-foreground">{drillKey}</span>
+      <span className="ml-1 text-muted-foreground">· by tag</span>
+    </div>
+  ) : null
+
   if (!data.length) {
     return (
       <div className="flex h-64 items-center justify-center rounded-lg border border-dashed border-border bg-muted/40 text-sm font-medium text-muted-foreground">
@@ -91,91 +153,120 @@ export default function ChartPanel({ data = [], groupBy = 'tag', chartType = 'ba
 
   if (chartType === 'pie') {
     return (
-      <ResponsiveContainer width="100%" height={320}>
-        <PieChart>
-          <Pie
-            data={pieData}
-            dataKey="value"
-            nameKey="name"
-            cx="50%"
-            cy="50%"
-            innerRadius={58}
-            outerRadius={112}
-            paddingAngle={2}
-          >
-            {pieData.map((_, i) => (
-              <Cell key={i} fill={COLORS[i % COLORS.length]} />
-            ))}
-          </Pie>
-          <Tooltip
-            formatter={(v) => fmt(v)}
-            contentStyle={CHART_STYLE.tooltip}
-          />
-          <Legend wrapperStyle={{ fontSize: '12px', lineHeight: '20px' }} />
-        </PieChart>
-      </ResponsiveContainer>
+      <div>
+        {breadcrumb}
+        <ResponsiveContainer width="100%" height={320}>
+          <PieChart>
+            <Pie
+              data={active.pieData}
+              dataKey="value"
+              nameKey="name"
+              cx="50%"
+              cy="50%"
+              innerRadius={58}
+              outerRadius={112}
+              paddingAngle={2}
+              cursor={canDrill ? 'pointer' : 'default'}
+              onClick={canDrill ? (entry) => setDrillKey(entry.name) : undefined}
+            >
+              {active.pieData.map((_, i) => (
+                <Cell key={i} fill={COLORS[i % COLORS.length]} />
+              ))}
+            </Pie>
+            <Tooltip
+              formatter={(v) => fmt(v)}
+              contentStyle={CHART_STYLE.tooltip}
+            />
+            <Legend wrapperStyle={{ fontSize: '12px', lineHeight: '20px' }} />
+          </PieChart>
+        </ResponsiveContainer>
+      </div>
     )
   }
 
   if (chartType === 'line') {
     return (
-      <ResponsiveContainer width="100%" height={320}>
-        <LineChart data={barData} margin={{ top: 8, right: 20, left: 0, bottom: 5 }}>
-          <CartesianGrid strokeDasharray="4 4" stroke={CHART_STYLE.grid} vertical={false} />
-          <XAxis dataKey="month" tick={CHART_STYLE.tick} axisLine={false} tickLine={false} />
-          <YAxis tickFormatter={(v) => `₹${(v / 1000).toFixed(0)}k`} tick={CHART_STYLE.tick} axisLine={false} tickLine={false} width={54} />
-          <Tooltip
-            formatter={(v) => fmt(v)}
-            contentStyle={CHART_STYLE.tooltip}
-          />
-          <Legend wrapperStyle={{ fontSize: '12px' }} />
-          {keys.map((k, i) => (
-            <Line key={k} type="monotone" dataKey={k} stroke={COLORS[i % COLORS.length]} dot={false} strokeWidth={2} />
-          ))}
-        </LineChart>
-      </ResponsiveContainer>
+      <div>
+        {breadcrumb}
+        <ResponsiveContainer width="100%" height={320}>
+          <LineChart data={active.barData} margin={{ top: 8, right: 20, left: 0, bottom: 5 }}>
+            <CartesianGrid strokeDasharray="4 4" stroke={CHART_STYLE.grid} vertical={false} />
+            <XAxis dataKey="month" tick={CHART_STYLE.tick} axisLine={false} tickLine={false} />
+            <YAxis tickFormatter={(v) => `₹${(v / 1000).toFixed(0)}k`} tick={CHART_STYLE.tick} axisLine={false} tickLine={false} width={54} />
+            <Tooltip
+              formatter={(v) => fmt(v)}
+              contentStyle={CHART_STYLE.tooltip}
+            />
+            <Legend wrapperStyle={{ fontSize: '12px' }} />
+            {active.keys.map((k, i) => (
+              <Line key={k} type="monotone" dataKey={k} stroke={COLORS[i % COLORS.length]} dot={false} strokeWidth={2} />
+            ))}
+          </LineChart>
+        </ResponsiveContainer>
+      </div>
     )
   }
 
   // Grouped bar chart (bars side-by-side, no stackId)
   if (chartType === 'grouped') {
     return (
+      <div>
+        {breadcrumb}
+        <ResponsiveContainer width="100%" height={320}>
+          <BarChart data={active.barData} margin={{ top: 8, right: 20, left: 0, bottom: 5 }} barCategoryGap="20%" barGap={3}>
+            <CartesianGrid strokeDasharray="4 4" stroke={CHART_STYLE.grid} vertical={false} />
+            <XAxis dataKey="month" tick={CHART_STYLE.tick} axisLine={false} tickLine={false} />
+            <YAxis tickFormatter={(v) => `₹${(v / 1000).toFixed(0)}k`} tick={CHART_STYLE.tick} axisLine={false} tickLine={false} width={54} />
+            <Tooltip
+              formatter={(v) => fmt(v)}
+              contentStyle={CHART_STYLE.tooltip}
+              cursor={CHART_STYLE.cursor}
+            />
+            <Legend wrapperStyle={{ fontSize: '12px' }} />
+            {active.keys.map((k, i) => (
+              <Bar
+                key={k}
+                dataKey={k}
+                fill={COLORS[i % COLORS.length]}
+                radius={[3, 3, 0, 0]}
+                cursor={canDrill ? 'pointer' : 'default'}
+                onClick={canDrill ? () => setDrillKey(k) : undefined}
+              />
+            ))}
+          </BarChart>
+        </ResponsiveContainer>
+      </div>
+    )
+  }
+
+  // Default: stacked bar chart
+  return (
+    <div>
+      {breadcrumb}
       <ResponsiveContainer width="100%" height={320}>
-        <BarChart data={barData} margin={{ top: 8, right: 20, left: 0, bottom: 5 }} barCategoryGap="20%" barGap={3}>
+        <BarChart data={active.barData} margin={{ top: 8, right: 20, left: 0, bottom: 5 }}>
           <CartesianGrid strokeDasharray="4 4" stroke={CHART_STYLE.grid} vertical={false} />
           <XAxis dataKey="month" tick={CHART_STYLE.tick} axisLine={false} tickLine={false} />
           <YAxis tickFormatter={(v) => `₹${(v / 1000).toFixed(0)}k`} tick={CHART_STYLE.tick} axisLine={false} tickLine={false} width={54} />
           <Tooltip
             formatter={(v) => fmt(v)}
             contentStyle={CHART_STYLE.tooltip}
-            cursor={{ fill: 'hsl(210 20% 94%)' }}
+            cursor={CHART_STYLE.cursor}
           />
           <Legend wrapperStyle={{ fontSize: '12px' }} />
-          {keys.map((k, i) => (
-            <Bar key={k} dataKey={k} fill={COLORS[i % COLORS.length]} radius={[3, 3, 0, 0]} />
+          {active.keys.map((k, i) => (
+            <Bar
+              key={k}
+              dataKey={k}
+              fill={COLORS[i % COLORS.length]}
+              stackId="stack"
+              radius={[2, 2, 0, 0]}
+              cursor={canDrill ? 'pointer' : 'default'}
+              onClick={canDrill ? () => setDrillKey(k) : undefined}
+            />
           ))}
         </BarChart>
       </ResponsiveContainer>
-    )
-  }
-
-  // Default: stacked bar chart
-  return (
-    <ResponsiveContainer width="100%" height={320}>
-      <BarChart data={barData} margin={{ top: 8, right: 20, left: 0, bottom: 5 }}>
-        <CartesianGrid strokeDasharray="4 4" stroke={CHART_STYLE.grid} vertical={false} />
-        <XAxis dataKey="month" tick={CHART_STYLE.tick} axisLine={false} tickLine={false} />
-        <YAxis tickFormatter={(v) => `₹${(v / 1000).toFixed(0)}k`} tick={CHART_STYLE.tick} axisLine={false} tickLine={false} width={54} />
-        <Tooltip
-          formatter={(v) => fmt(v)}
-          contentStyle={CHART_STYLE.tooltip}
-          cursor={{ fill: 'hsl(210 20% 94%)' }}
-        />
-        <Legend wrapperStyle={{ fontSize: '12px' }} />
-        {keys.map((k, i) => (
-          <Bar key={k} dataKey={k} fill={COLORS[i % COLORS.length]} stackId="stack" radius={[2, 2, 0, 0]} />
-        ))}
-      </BarChart>
-    </ResponsiveContainer>
+    </div>
   )
 }

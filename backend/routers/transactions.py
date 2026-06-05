@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 from sqlalchemy import func
 from typing import Optional, List
@@ -64,8 +64,8 @@ def get_transactions(
     date_from: Optional[str] = None,
     date_to: Optional[str] = None,
     tx_type: Optional[str] = None,
-    tag: Optional[str] = None,
-    category: Optional[str] = None,
+    tag: Optional[List[str]] = Query(None),
+    category: Optional[List[str]] = Query(None),
     min_amount: Optional[float] = None,
     max_amount: Optional[float] = None,
     db: Session = Depends(get_db),
@@ -86,9 +86,9 @@ def get_transactions(
     if tag or category:
         tag_subquery = db.query(TagMapping.particulars)
         if tag:
-            tag_subquery = tag_subquery.filter(TagMapping.tag == tag)
+            tag_subquery = tag_subquery.filter(TagMapping.tag.in_(tag))
         if category:
-            tag_subquery = tag_subquery.filter(TagMapping.category == category)
+            tag_subquery = tag_subquery.filter(TagMapping.category.in_(category))
         matching = [r.particulars for r in tag_subquery.all()]
         query = query.filter(Transaction.particulars.in_(matching))
 
